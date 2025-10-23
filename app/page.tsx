@@ -2,16 +2,18 @@ import Link from 'next/link'
 
 async function getElections() {
   try {
-    // Use absolute URL in production, relative in development
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-    const response = await fetch(`${baseUrl}/api/elections`, {
-      cache: 'no-store'
+    // Use a relative API path when running in the Next.js server environment.
+    // Absolute URLs can be fragile on Vercel (missing NEXT_PUBLIC_APP_URL); a
+    // relative fetch to `/api/elections` works both locally and in production
+    // when executed on the server.
+    const response = await fetch(`/api/elections`, {
+      cache: 'no-store',
     })
-    
+
     if (!response.ok) {
       return []
     }
-    
+
     return await response.json()
   } catch (error) {
     console.error('Error fetching elections:', error)
