@@ -2,23 +2,20 @@
 
 A full-stack **Single Transferable Vote (STV)** election management system built with Turborepo.
 
-## 🚀 Deploy to Vercel (Single Project)
+## 🚀 Deploy to Vercel
 
-Deploy the **entire system as ONE Vercel project** with all apps on the same URL:
+Deploy as **3 separate Vercel projects** (recommended):
 
-📘 **[Vercel Single Project Deployment Guide](./VERCEL_SINGLE_PROJECT.md)** ⭐
+📘 **[Vercel Deployment Guide](./VERCEL_DEPLOY.md)** ⭐
 
+**What you'll get:**
 ```
-https://yourproject.vercel.app/         → Voter Interface
-https://yourproject.vercel.app/admin    → Admin Dashboard
-https://yourproject.vercel.app/api/*    → Backend API
+https://kpa-election-voter.vercel.app  → Voter Interface
+https://kpa-election-admin.vercel.app  → Admin Dashboard  
+https://kpa-election-api.vercel.app    → Backend API
 ```
 
-**Quick Deploy:**
-```bash
-git push origin main
-# Then import to Vercel dashboard
-```
+**Quick Deploy:** Follow the [5-step guide](./VERCEL_DEPLOY.md)
 
 ---
 

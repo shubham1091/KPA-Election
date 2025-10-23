@@ -1,0 +1,13 @@
+{
+  "buildCommand": "cd ../.. && npx turbo run build --filter=stv-election-admin",
+  "outputDirectory": "dist",
+  "installCommand": "npm install --prefix ../..",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+
