@@ -5,6 +5,11 @@ import { eq } from 'drizzle-orm';
 import { runStvForPosition } from '@/lib/stv';
 import { v4 as uuidv4 } from 'uuid';
 
+// Configure maximum function duration for vote counting when closing elections
+// With Fluid Compute enabled (default): Hobby 300s, Pro/Enterprise up to 800s
+// Learn more: https://vercel.com/docs/functions/configuring-functions/duration
+export const maxDuration = 300; // 5 minutes - works for all plans with Fluid Compute
+
 // PATCH - Update election status
 export async function PATCH(request: Request) {
   try {
@@ -48,18 +53,17 @@ export async function PATCH(request: Request) {
         .where(eq(positions.election_id, id))
 
       const jobs = []
-      // Instead of attempting to run STV work in the same serverless request (which
-      // will be terminated on Vercel after the response is sent), create queued jobs
-      // and return them. A separate worker/cron/queue should pick up queued jobs and
-      // call the `/api/admin/run-count` endpoint or otherwise execute `runStvForPosition`.
+      const results: { position: string; success: boolean; error?: string }[] = []
+      
+      // Create and run count jobs for each position
+      // With maxDuration=300, this can handle multiple positions within the timeout
       for (const position of electionPositions) {
         const jobData = {
           id: uuidv4(),
           election_id: id,
           position_id: position.id,
           method: 'STV',
-          // mark as queued so the UI/worker can pick it up and run it reliably
-          status: 'queued',
+          status: 'running',
           started_by:
             adminId &&
             adminId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
@@ -71,14 +75,35 @@ export async function PATCH(request: Request) {
 
         if (job) {
           jobs.push(job)
+          
+          // Run STV counting synchronously for this position
+          try {
+            console.log(`🔄 Starting STV count for position ${position.name} (job ${job.id})`)
+            await runStvForPosition(job.id, id, position.id, new Date().toISOString())
+            console.log(`✅ STV count completed for position ${position.name} (job ${job.id})`)
+            results.push({ position: position.name, success: true })
+          } catch (stvError) {
+            console.error(`❌ STV counting error for position ${position.name} (job ${job.id}):`, stvError)
+            results.push({ 
+              position: position.name, 
+              success: false, 
+              error: stvError instanceof Error ? stvError.message : 'Unknown error' 
+            })
+          }
         }
       }
+
+      const successCount = results.filter(r => r.success).length
+      const failedCount = results.filter(r => !r.success).length
 
       return NextResponse.json({
         ...updated,
         jobsCreated: jobs.length,
+        jobsCompleted: successCount,
+        jobsFailed: failedCount,
         jobs,
-        note: 'Count jobs queued; please run them using a worker or the run-count endpoint.',
+        results,
+        note: `Vote counting completed: ${successCount} successful, ${failedCount} failed.`,
       })
     }
 

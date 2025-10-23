@@ -223,7 +223,7 @@ export default function ElectionDetail() {
   }
 
   const handleCloseElection = async () => {
-    if (!confirm('Close this election?\n\nThis will:\n• Stop accepting new votes\n• Automatically start counting votes\n• Calculate results using STV method')) return
+    if (!confirm('Close this election?\n\nThis will:\n• Stop accepting new votes\n• Automatically count all votes\n• Calculate results using STV method\n\nThis may take a few moments...')) return
 
     try {
       // Close the election - this now automatically triggers vote counting!
@@ -240,14 +240,20 @@ export default function ElectionDetail() {
       const updated = await response.json()
       setElection(updated)
 
-      // Show success message with job count
-      const jobCount = updated.jobsCreated || 0
-      alert(
-        `Election closed successfully!\n\n` +
-        `${jobCount} counting job(s) started automatically.\n` +
-        `Vote counting is now in progress...\n\n` +
-        `Redirecting to results page...`
-      )
+      // Show success message with detailed results
+      const jobsCreated = updated.jobsCreated || 0
+      const jobsCompleted = updated.jobsCompleted || 0
+      const jobsFailed = updated.jobsFailed || 0
+      
+      let message = `Election closed successfully!\n\n`
+      message += `${jobsCreated} position(s) processed:\n`
+      message += `✅ ${jobsCompleted} completed successfully\n`
+      if (jobsFailed > 0) {
+        message += `❌ ${jobsFailed} failed\n`
+      }
+      message += `\nRedirecting to results page...`
+      
+      alert(message)
       
       // Navigate to results page
       router.push(`/admin/results/${params.electionId}`)
