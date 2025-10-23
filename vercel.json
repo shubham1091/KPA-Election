@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "bash build.sh",
+  "buildCommand": "cd /vercel/path0 && bash build.sh",
   "installCommand": "npm install",
   "outputDirectory": "dist",
   "rewrites": [
