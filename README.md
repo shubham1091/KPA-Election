@@ -43,8 +43,9 @@ Visit:
 2. Go to [vercel.com](https://vercel.com)
 3. Import your repository
 4. Add environment variables:
-   - `DATABASE_URL` - Your Neon connection string
-   - `JWT_SECRET` - Random secret key (32+ characters)
+   - `DATABASE_URL` - Your Neon connection string (required)
+   - `JWT_SECRET` - Random secret key (32+ characters, required)
+   - `NEXT_PUBLIC_APP_URL` - Your full site URL like `https://your-site.vercel.app` (recommended)
 5. Deploy!
 
 ### Environment Variables
@@ -58,7 +59,11 @@ NEXT_PUBLIC_APP_URL=https://your-site.vercel.app
 NODE_ENV=production
 ```
 
-**Note:** `NEXT_PUBLIC_APP_URL` is optional. The app will automatically detect the correct domain from request headers in production. However, setting it explicitly is recommended for consistent URL generation across different deployment environments.
+**Important for Voter Links:**
+- `NEXT_PUBLIC_APP_URL` is **highly recommended** for production deployments
+- Without it, voter invitation URLs might default to localhost
+- Set it to your full production URL (e.g., `https://your-site.vercel.app`)
+- The app will fall back to request headers or `VERCEL_URL` if not set, but explicit configuration is more reliable
 
 ## 🏗️ Project Structure
 

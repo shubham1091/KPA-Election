@@ -133,10 +133,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get base URL for prefilled URLs from request headers
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'localhost:3000';
-    const protocol = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
-    const baseUrl = `${protocol}://${host}`;
+    // Get base URL for prefilled URLs
+    // Priority: 1. NEXT_PUBLIC_APP_URL, 2. Request headers, 3. Vercel URL, 4. localhost
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    
+    if (!baseUrl) {
+      const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+      if (host) {
+        const protocol = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+        baseUrl = `${protocol}://${host}`;
+      } else if (process.env.VERCEL_URL) {
+        baseUrl = `https://${process.env.VERCEL_URL}`;
+      } else {
+        baseUrl = 'http://localhost:3000';
+      }
+    }
+    
+    console.log('🔗 Generating voter URLs with base:', baseUrl);
 
     // Import voters with proper token generation
     const importedVoters: Array<{
