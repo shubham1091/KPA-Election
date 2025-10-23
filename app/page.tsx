@@ -2,7 +2,9 @@ import Link from 'next/link'
 
 async function getElections() {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/elections`, {
+    // Use absolute URL in production, relative in development
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const response = await fetch(`${baseUrl}/api/elections`, {
       cache: 'no-store'
     })
     

@@ -58,6 +58,8 @@ NEXT_PUBLIC_APP_URL=https://your-site.vercel.app
 NODE_ENV=production
 ```
 
+**Note:** `NEXT_PUBLIC_APP_URL` is optional. The app will automatically detect the correct domain from request headers in production. However, setting it explicitly is recommended for consistent URL generation across different deployment environments.
+
 ## 🏗️ Project Structure
 
 ```

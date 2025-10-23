@@ -133,8 +133,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get base URL for prefilled URLs
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    // Get base URL for prefilled URLs from request headers
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'localhost:3000';
+    const protocol = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+    const baseUrl = `${protocol}://${host}`;
 
     // Import voters with proper token generation
     const importedVoters: Array<{
