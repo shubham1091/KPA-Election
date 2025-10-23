@@ -65,22 +65,21 @@ NODE_ENV=production
 - Set it to your full production URL (e.g., `https://your-site.vercel.app`)
 - The app will fall back to request headers or `VERCEL_URL` if not set, but explicit configuration is more reliable
 
-### Enable Fluid Compute (Recommended)
+### Function Duration Limits
 
-For better performance and to handle long-running vote counts, enable **Fluid Compute** in Vercel:
+The app is configured with `maxDuration = 300` (5 minutes) for vote counting. This works with all Vercel plans when **Fluid Compute** is enabled (default):
 
-1. Open your project in Vercel Dashboard
-2. Go to **Settings** → **Functions**
-3. Scroll to **Fluid Compute** section
-4. Toggle **Enable Fluid Compute**
-5. **Redeploy** your project
+| Plan       | Default Duration | Max Duration with Fluid Compute |
+|------------|------------------|---------------------------------|
+| Hobby      | 300s (5 min)     | 300s (5 min)                    |
+| Pro        | 300s (5 min)     | 800s (13.3 min)                 |
+| Enterprise | 300s (5 min)     | 800s (13.3 min)                 |
 
-**Benefits:**
-- Extended function durations (up to 14 minutes on paid plans)
-- Better handling of background tasks (vote counting)
-- Reduced cold starts and optimized concurrency
+**For larger elections on Pro/Enterprise**, you can increase the limit in your deployment settings.
 
-Learn more: [Vercel Fluid Compute Guide](https://vercel.com/guides/what-can-i-do-about-vercel-serverless-functions-timing-out)
+**Learn more:**
+- [Vercel Function Duration](https://vercel.com/docs/functions/configuring-functions/duration)
+- [Fluid Compute Guide](https://vercel.com/guides/what-can-i-do-about-vercel-serverless-functions-timing-out)
 
 ## 🏗️ Project Structure
 

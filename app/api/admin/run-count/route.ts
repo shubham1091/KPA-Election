@@ -4,10 +4,11 @@ import { count_jobs } from '@/lib/schema'
 import { runStvForPosition } from '@/lib/stv'
 import { v4 as uuidv4 } from 'uuid'
 
-// Use Fluid Compute for better performance and extended durations
-// Free: up to 1 minute, Paid: up to 14 minutes
-// Enable in Vercel Dashboard: Settings > Functions > Fluid Compute
-export const maxDuration = 300 // 5 minutes (enough for most elections)
+// Configure maximum function duration for vote counting
+// With Fluid Compute enabled (default): Hobby 300s, Pro/Enterprise up to 800s
+// Without Fluid Compute: Hobby 60s, Pro 300s, Enterprise 900s
+// Learn more: https://vercel.com/docs/functions/configuring-functions/duration
+export const maxDuration = 300 // 5 minutes - works for all plans with Fluid Compute
 
 export async function POST(req: NextRequest) {
   try {
