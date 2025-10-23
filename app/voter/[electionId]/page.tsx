@@ -66,30 +66,45 @@ function SortableCandidate({
     isDragging,
   } = useSortable({ id: candidate.id })
 
+  const [isAnimating, setIsAnimating] = useState(false)
+
+  const handleMoveUp = () => {
+    setIsAnimating(true)
+    onMoveUp()
+    setTimeout(() => setIsAnimating(false), 300)
+  }
+
+  const handleMoveDown = () => {
+    setIsAnimating(true)
+    onMoveDown()
+    setTimeout(() => setIsAnimating(false), 300)
+  }
+
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: transition || 'transform 200ms ease',
-    opacity: isDragging ? 0.5 : 1,
+    transition: transition || 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
   }
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 ${
-        isDragging ? 'ring-2 ring-indigo-500 scale-105' : ''
-      }`}
+      className={`p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-300 ${
+        isDragging ? 'ring-2 ring-blue-400 shadow-lg' : ''
+      } ${isAnimating ? 'ring-2 ring-blue-400' : ''}`}
     >
       <div className="flex items-center space-x-3">
         {/* Drag Handle */}
-        <div
+        <button
+          type="button"
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none"
+          className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none p-1 focus:outline-none"
           title="Drag to reorder"
+          aria-label="Drag to reorder"
         >
           <GripVertical className="h-5 w-5" />
-        </div>
+        </button>
 
         {/* Rank Number */}
         <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full text-sm font-medium flex-shrink-0">
@@ -113,26 +128,32 @@ function SortableCandidate({
         </div>
 
         {/* Arrow Buttons */}
-        <div className="flex flex-col space-y-1">
+        <div className="flex flex-col space-y-1 flex-shrink-0">
           <button
+            type="button"
             onClick={(e) => {
+              e.preventDefault()
               e.stopPropagation()
-              onMoveUp()
+              handleMoveUp()
             }}
             disabled={index === 0}
-            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
             title="Move up"
+            aria-label="Move up"
           >
             <ArrowUp className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={(e) => {
+              e.preventDefault()
               e.stopPropagation()
-              onMoveDown()
+              handleMoveDown()
             }}
             disabled={index === totalCount - 1}
-            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
             title="Move down"
+            aria-label="Move down"
           >
             <ArrowDown className="h-4 w-4" />
           </button>
@@ -571,7 +592,7 @@ export default function VoterElectionPage({ params }: { params: Promise<{ electi
                         items={positionCandidates.map(c => c.id)}
                         strategy={verticalListSortingStrategy}
                       >
-                        <div className="space-y-3">
+                        <div className="space-y-3" style={{ position: 'relative' }}>
                           {positionCandidates.map((candidate, index) => (
                             <SortableCandidate
                               key={candidate.id}
