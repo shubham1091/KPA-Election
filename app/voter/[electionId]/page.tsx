@@ -2,7 +2,24 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react'
+import { CheckCircle, AlertCircle, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 type Election = {
   id: string
@@ -26,6 +43,105 @@ type Candidate = {
   withdrawn: boolean
 }
 
+// Sortable Candidate Item Component
+function SortableCandidate({
+  candidate,
+  index,
+  totalCount,
+  onMoveUp,
+  onMoveDown,
+}: {
+  candidate: Candidate
+  index: number
+  totalCount: number
+  onMoveUp: () => void
+  onMoveDown: () => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: candidate.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition || 'transform 200ms ease',
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 ${
+        isDragging ? 'ring-2 ring-indigo-500 scale-105' : ''
+      }`}
+    >
+      <div className="flex items-center space-x-3">
+        {/* Drag Handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none"
+          title="Drag to reorder"
+        >
+          <GripVertical className="h-5 w-5" />
+        </div>
+
+        {/* Rank Number */}
+        <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full text-sm font-medium flex-shrink-0">
+          {index + 1}
+        </div>
+
+        {/* Candidate Info */}
+        <div className="flex-1 min-w-0">
+          <h4 className="font-medium text-gray-900">{candidate.display_name}</h4>
+          {candidate.manifesto_link && (
+            <a
+              href={candidate.manifesto_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-indigo-600 hover:text-indigo-500"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View Manifesto →
+            </a>
+          )}
+        </div>
+
+        {/* Arrow Buttons */}
+        <div className="flex flex-col space-y-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onMoveUp()
+            }}
+            disabled={index === 0}
+            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="Move up"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onMoveDown()
+            }}
+            disabled={index === totalCount - 1}
+            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="Move down"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function VoterElectionPage({ params }: { params: Promise<{ electionId: string }> }) {
   const resolvedParams = React.use(params)
   const router = useRouter()
@@ -44,6 +160,18 @@ export default function VoterElectionPage({ params }: { params: Promise<{ electi
   const [showTokenEntry, setShowTokenEntry] = useState(false)
   const [enteredToken, setEnteredToken] = useState('')
   const [verifyingToken, setVerifyingToken] = useState(false)
+
+  // Setup drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before drag starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   useEffect(() => {
     if (token) {
@@ -164,6 +292,24 @@ export default function VoterElectionPage({ params }: { params: Promise<{ electi
       setError('Failed to load ballot: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Handle drag end event for a specific position
+  const handleDragEnd = (positionId: string) => (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setRankings((prev) => {
+        const oldRanking = prev[positionId]
+        const oldIndex = oldRanking.indexOf(active.id as string)
+        const newIndex = oldRanking.indexOf(over.id as string)
+
+        return {
+          ...prev,
+          [positionId]: arrayMove(oldRanking, oldIndex, newIndex),
+        }
+      })
     }
   }
 
@@ -393,7 +539,7 @@ export default function VoterElectionPage({ params }: { params: Promise<{ electi
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-900">Rank Your Preferences</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Use the arrow buttons to rank candidates in order of preference (1 = first choice).
+              Drag candidates to reorder or use arrow buttons. Rank candidates in order of preference (1 = first choice).
             </p>
           </div>
 
@@ -416,51 +562,29 @@ export default function VoterElectionPage({ params }: { params: Promise<{ electi
                       </p>
                     </div>
 
-                    <div className="space-y-3">
-                      {positionCandidates.map((candidate, index) => (
-                        <div
-                          key={candidate.id}
-                          className="p-4 border rounded-lg bg-white shadow-sm"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full text-sm font-medium flex-shrink-0">
-                              {index + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-gray-900">{candidate.display_name}</h4>
-                              {candidate.manifesto_link && (
-                                <a
-                                  href={candidate.manifesto_link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-indigo-600 hover:text-indigo-500"
-                                >
-                                  View Manifesto →
-                                </a>
-                              )}
-                            </div>
-                            <div className="flex flex-col space-y-1">
-                              <button
-                                onClick={() => moveCandidateUp(position.id, index)}
-                                disabled={index === 0}
-                                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="Move up"
-                              >
-                                <ArrowUp className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => moveCandidateDown(position.id, index)}
-                                disabled={index === positionCandidates.length - 1}
-                                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="Move down"
-                              >
-                                <ArrowDown className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd(position.id)}
+                    >
+                      <SortableContext
+                        items={positionCandidates.map(c => c.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3">
+                          {positionCandidates.map((candidate, index) => (
+                            <SortableCandidate
+                              key={candidate.id}
+                              candidate={candidate}
+                              index={index}
+                              totalCount={positionCandidates.length}
+                              onMoveUp={() => moveCandidateUp(position.id, index)}
+                              onMoveDown={() => moveCandidateDown(position.id, index)}
+                            />
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </SortableContext>
+                    </DndContext>
                   </div>
                 )
               })}

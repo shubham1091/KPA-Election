@@ -2,19 +2,17 @@ import Link from 'next/link'
 
 async function getElections() {
   try {
-    // Use a relative API path when running in the Next.js server environment.
-    // Absolute URLs can be fragile on Vercel (missing NEXT_PUBLIC_APP_URL); a
-    // relative fetch to `/api/elections` works both locally and in production
-    // when executed on the server.
-    const response = await fetch(`/api/elections`, {
-      cache: 'no-store',
-    })
-
-    if (!response.ok) {
-      return []
-    }
-
-    return await response.json()
+    // Import db directly to avoid fetch issues in server components
+    const { db } = await import('@/lib/db')
+    const { elections } = await import('@/lib/schema')
+    const { desc } = await import('drizzle-orm')
+    
+    const allElections = await db
+      .select()
+      .from(elections)
+      .orderBy(desc(elections.createdAt))
+    
+    return allElections
   } catch (error) {
     console.error('Error fetching elections:', error)
     return []
