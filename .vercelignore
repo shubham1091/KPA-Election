@@ -1,0 +1,49 @@
+# Vercel Ignore - Exclude unnecessary files from deployment
+
+# Development files
+.git
+.gitignore
+*.md
+!README.md
+
+# Node modules (Vercel installs fresh)
+node_modules
+
+# Build artifacts (rebuilt on Vercel)
+.turbo
+*.log
+.next
+.cache
+
+# Tests
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+coverage
+
+# IDE and system files
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Documentation (not needed for runtime)
+docs
+DEPLOYMENT_*.md
+QUICK_START.md
+VERCEL_SINGLE_PROJECT.md
+
+# Scripts (not needed after build)
+scripts
+
+# Source maps (uncomment to exclude)
+# **/*.map
+

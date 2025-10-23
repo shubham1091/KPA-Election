@@ -1,16 +1,48 @@
-# Turborepo kitchen sink starter
+# KPA-Election - STV Voting System 🗳️
 
-This Turborepo starter is maintained by the Turborepo core team.
+A full-stack **Single Transferable Vote (STV)** election management system built with Turborepo.
 
-This example also shows how to use [Workspace Configurations](https://turborepo.com/docs/core-concepts/monorepos/configuring-workspaces).
+## 🚀 Deploy to Vercel (Single Project)
 
-## Using this example
+Deploy the **entire system as ONE Vercel project** with all apps on the same URL:
 
-Run the following command:
+📘 **[Vercel Single Project Deployment Guide](./VERCEL_SINGLE_PROJECT.md)** ⭐
+
+```
+https://yourproject.vercel.app/         → Voter Interface
+https://yourproject.vercel.app/admin    → Admin Dashboard
+https://yourproject.vercel.app/api/*    → Backend API
+```
+
+**Quick Deploy:**
+```bash
+git push origin main
+# Then import to Vercel dashboard
+```
+
+---
+
+## 💻 Local Development
 
 ```sh
-npx create-turbo@latest -e kitchen-sink
+# Install dependencies
+npm install
+
+# Set up API environment
+cd apps/api
+npm run setup-env
+npm run db:push
+npm run create-admin
+
+# Start all apps (from root)
+cd ../..
+npm run dev
 ```
+
+**Local URLs:**
+- API: http://localhost:5001
+- Voter: http://localhost:3000
+- Admin: http://localhost:3001
 
 ## What's inside?
 
