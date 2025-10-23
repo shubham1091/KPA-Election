@@ -30,7 +30,7 @@ export async function GET(
   } catch (error) {
     console.error('get-rounds error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch count rounds' },
+      { error: error instanceof Error ? error.message : 'Failed to fetch count rounds' },
       { status: 500 }
     )
   }

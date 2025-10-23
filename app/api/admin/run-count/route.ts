@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('run-count error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to start count' },
+      { error: error instanceof Error ? error.message : 'Failed to start count' },
       { status: 500 }
     )
   }

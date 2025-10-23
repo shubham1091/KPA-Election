@@ -130,7 +130,7 @@ export function handleError(error: unknown): NextResponse {
       {
         error: error.message,
         code: error.code,
-        ...(error.details && { details: error.details })
+        ...(error.details ? { details: error.details } : {})
       },
       { status: error.statusCode }
     )

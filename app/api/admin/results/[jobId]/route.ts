@@ -36,7 +36,7 @@ export async function GET(
   } catch (error) {
     console.error('get-result-summary error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch result summary' },
+      { error: error instanceof Error ? error.message : 'Failed to fetch result summary' },
       { status: 500 }
     )
   }

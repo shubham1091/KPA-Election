@@ -22,6 +22,8 @@ type Election = {
   name: string
   description: string | null
   status: string
+  startDate?: Date | null
+  endDate?: Date | null
 }
 
 export default async function Home() {

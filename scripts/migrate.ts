@@ -64,7 +64,7 @@ async function runMigration() {
       WHERE table_name = 'admins'
       ORDER BY ordinal_position
     `;
-    adminsColumns.forEach((col: { column_name: string; data_type: string }) => {
+    (adminsColumns as Array<{ column_name: string; data_type: string }>).forEach((col) => {
       console.log(`  - ${col.column_name}: ${col.data_type}`);
     });
 
@@ -75,7 +75,7 @@ async function runMigration() {
       WHERE table_name = 'elections'
       ORDER BY ordinal_position
     `;
-    electionsColumns.forEach((col: { column_name: string; data_type: string }) => {
+    (electionsColumns as Array<{ column_name: string; data_type: string }>).forEach((col) => {
       console.log(`  - ${col.column_name}: ${col.data_type}`);
     });
 

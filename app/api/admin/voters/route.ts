@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       student_id: string | null
       email: string | null
       real_token: string
-      prefilled_url: string
+      prefilled_url: string | null
     }> = [];
     const tokens: { name: string; token: string; url: string }[] = [];
 
@@ -170,11 +170,11 @@ export async function POST(request: Request) {
         token_fingerprint: tokenFingerprint,
         real_token: token,
         prefilled_url: prefilledUrl,
-      }).returning();
+      } as typeof voters.$inferInsert).returning();
 
       importedVoters.push(voter);
       tokens.push({
-        name: fullName || 'Unknown',
+        name: (fullName as string | null) || 'Unknown',
         token,
         url: prefilledUrl,
       });
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Import voters error:', error);
     return NextResponse.json(
-      { error: 'Failed to import voters', details: error.message },
+      { error: 'Failed to import voters', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

@@ -121,7 +121,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Submit ballot error:', error);
     return NextResponse.json(
-      { error: 'Failed to submit ballot', details: error.message },
+      { error: 'Failed to submit ballot', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

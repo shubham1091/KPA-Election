@@ -129,12 +129,19 @@ export async function runStvForPosition(
 
     type RoundData = {
       round: number
-      votes: Record<string, number>
+      votes?: Record<string, number>
+      tallies?: Record<string, number>
       eliminated?: string
       elected?: string
       transfers?: Array<{ from: string; to: string | null; ballotId: string }>
       quota?: number
       exhausted?: number
+      action?: {
+        type: 'elect' | 'eliminate'
+        winner?: string
+        eliminated?: string
+        transfers?: Array<{ from: string; to: string | null; ballotId: string }>
+      }
     }
 
     const rounds: RoundData[] = [];

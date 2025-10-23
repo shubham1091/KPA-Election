@@ -35,15 +35,23 @@ type ResultSummary = {
   quota?: number
   rounds?: number
   firstPreferences?: Record<string, number>
-  [key: string]: unknown
+  note?: string
 }
 
 type Round = {
   round: number
   eliminated?: string
   elected?: string
-  votes: Record<string, number>
-  [key: string]: unknown
+  votes?: Record<string, number>
+  tallies?: Record<string, number>
+  exhausted?: number
+  action?: {
+    type: 'elect' | 'eliminate'
+    candidateId?: string
+    winner?: string
+    eliminated?: string
+    transfers?: unknown[]
+  }
 }
 
 type CountJob = {
@@ -379,28 +387,31 @@ export default function ElectionResults() {
                       </div>
 
                       {/* Result Details */}
-                      {result.job.result_summary.totalBallots !== undefined && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <div className="text-sm text-gray-500">Total Ballots</div>
-                            <div className="text-2xl font-bold text-gray-900">
-                              {result.job.result_summary.totalBallots}
+                      {(() => {
+                        const summary = result.job.result_summary as ResultSummary;
+                        return typeof summary.totalBallots === 'number' ? (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-gray-50 rounded-lg p-4">
+                              <div className="text-sm text-gray-500">Total Ballots</div>
+                              <div className="text-2xl font-bold text-gray-900">
+                                {summary.totalBallots}
+                              </div>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                              <div className="text-sm text-gray-500">Quota</div>
+                              <div className="text-2xl font-bold text-gray-900">
+                                {summary.quota || 'N/A'}
+                              </div>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                              <div className="text-sm text-gray-500">Rounds</div>
+                              <div className="text-2xl font-bold text-gray-900">
+                                {summary.rounds || 'N/A'}
+                              </div>
                             </div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <div className="text-sm text-gray-500">Quota</div>
-                            <div className="text-2xl font-bold text-gray-900">
-                              {result.job.result_summary.quota || 'N/A'}
-                            </div>
-                          </div>
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <div className="text-sm text-gray-500">Rounds</div>
-                            <div className="text-2xl font-bold text-gray-900">
-                              {result.job.result_summary.rounds || 'N/A'}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                        ) : null;
+                      })() as React.ReactNode}
 
                       {/* Detailed Vote Counts */}
                       {result.job.result_summary.firstPreferences && (
@@ -414,11 +425,12 @@ export default function ElectionResults() {
                                 if (!candidate) return null
 
                                 const voteCount = votes as number
-                                const percentage = result.job!.result_summary.totalBallots && result.job!.result_summary.totalBallots > 0
-                                  ? ((voteCount / result.job!.result_summary.totalBallots) * 100).toFixed(1)
+                                const totalBallots = result.job?.result_summary?.totalBallots || 0
+                                const percentage = totalBallots > 0
+                                  ? ((voteCount / totalBallots) * 100).toFixed(1)
                                   : 0
 
-                                const isWinner = candidateId === result.job!.result_summary.winner
+                                const isWinner = candidateId === result.job?.result_summary?.winner
 
                                 return (
                                   <div key={candidateId} className="relative">
@@ -559,7 +571,7 @@ export default function ElectionResults() {
                           </div>
                         ))}
                       </div>
-                      {round.exhausted > 0 && (
+                      {(round.exhausted || 0) > 0 && (
                         <div className="mt-2 text-sm text-gray-500">
                           Exhausted ballots: {round.exhausted}
                         </div>
@@ -573,12 +585,12 @@ export default function ElectionResults() {
                           {round.action.type === 'elect' ? (
                             <>
                               <span className="text-green-600">✓ Elected:</span>{' '}
-                              {getCandidateName(round.action.winner)}
+                              {getCandidateName(round.action.winner || '')}
                             </>
                           ) : (
                             <>
                               <span className="text-red-600">✗ Eliminated:</span>{' '}
-                              {getCandidateName(round.action.eliminated)}
+                              {getCandidateName(round.action.eliminated || '')}
                             </>
                           )}
                         </div>

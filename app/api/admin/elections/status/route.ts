@@ -55,11 +55,8 @@ export async function PATCH(request: Request) {
           position_id: position.id,
           method: 'STV',
           status: 'running',
+          started_by: (adminId && adminId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) ? adminId : null,
         };
-        
-        if (adminId && adminId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-          jobData.started_by = adminId;
-        }
         
         const [job] = await db.insert(count_jobs).values(jobData).returning();
 
