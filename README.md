@@ -1,69 +1,144 @@
-# KPA-Election - STV Voting System 🗳️
+# KPA Election - Next.js App
 
-A full-stack **Single Transferable Vote (STV)** election management system built with Turborepo.
+Single Next.js application with admin, voter, and API functionality all in one.
 
-## 🚀 Deploy to Vercel
+## 🚀 Quick Start
 
-Deploy as **3 separate Vercel projects** (recommended):
-
-📘 **[Vercel Deployment Guide](./VERCEL_DEPLOY.md)** ⭐
-
-**What you'll get:**
-```
-https://kpa-election-voter.vercel.app  → Voter Interface
-https://kpa-election-admin.vercel.app  → Admin Dashboard  
-https://kpa-election-api.vercel.app    → Backend API
-```
-
-**Quick Deploy:** Follow the [5-step guide](./VERCEL_DEPLOY.md)
-
----
-
-## 💻 Local Development
-
-```sh
-# Install dependencies
+### 1. Install Dependencies
+```bash
 npm install
+```
 
-# Set up API environment
-cd apps/api
-npm run setup-env
+### 2. Setup Environment
+```bash
+cp .env.example .env.local
+# Edit .env.local with your Neon database URL and JWT secret
+```
+
+### 3. Setup Database
+```bash
 npm run db:push
-npm run create-admin
+```
 
-# Start all apps (from root)
-cd ../..
+### 4. Create Admin User
+```bash
+npm run create-admin
+```
+
+### 5. Run Development Server
+```bash
 npm run dev
 ```
 
-**Local URLs:**
-- API: http://localhost:5001
+Visit:
+- Admin: http://localhost:3000/admin
 - Voter: http://localhost:3000
-- Admin: http://localhost:3001
+- API: http://localhost:3000/api/*
 
-## What's inside?
+## 📦 Deploy to Vercel
 
-This Turborepo includes the following packages and apps:
+### One-Click Deploy
 
-### Apps and Packages
+1. Push to GitHub
+2. Go to [vercel.com](https://vercel.com)
+3. Import your repository
+4. Add environment variables:
+   - `DATABASE_URL` - Your Neon connection string
+   - `JWT_SECRET` - Random secret key (32+ characters)
+5. Deploy!
 
-- `api`: an [Express](https://expressjs.com/) server
-- `storefront`: a [Next.js](https://nextjs.org/) app
-- `admin`: a [Vite](https://vitejs.dev/) single page app
-- `blog`: a [Remix](https://remix.run/) blog
-- `@repo/eslint-config`: ESLint configurations used throughout the monorepo
-- `@repo/jest-presets`: Jest configurations
-- `@repo/logger`: isomorphic logger (a small wrapper around console.log)
-- `@repo/ui`: a dummy React UI library (which contains `<CounterButton>` and `<Link>` components)
-- `@repo/typescript-config`: tsconfig.json's used throughout the monorepo
+### Environment Variables
 
-Each package and app is 100% [TypeScript](https://www.typescriptlang.org/).
+Set these in Vercel dashboard:
 
-### Utilities
+```
+DATABASE_URL=postgresql://user:password@ep-xxxxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters
+NEXT_PUBLIC_APP_URL=https://your-site.vercel.app
+NODE_ENV=production
+```
 
-This Turborepo has some additional tools already setup for you:
+## 🏗️ Project Structure
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Jest](https://jestjs.io) test runner for all things JavaScript
-- [Prettier](https://prettier.io) for code formatting
+```
+kpa-election-nextjs/
+├── app/
+│   ├── admin/              # Admin dashboard pages
+│   ├── voter/              # Voter interface pages  
+│   ├── api/                # API routes
+│   ├── layout.tsx          # Root layout
+│   └── page.tsx            # Home page
+├── lib/
+│   ├── db.ts               # Database configuration
+│   ├── schema.ts           # Database schema
+│   └── stv.ts              # STV algorithm
+├── components/             # Shared components
+└── public/                 # Static assets
+```
+
+## 📝 Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run db:push` - Push database schema
+- `npm run db:studio` - Open database GUI
+- `npm run create-admin` - Create admin user
+
+## 🎯 Features
+
+- ✅ Admin dashboard for election management
+- ✅ Voter interface for casting ballots
+- ✅ STV vote counting algorithm
+- ✅ Real-time results
+- ✅ Neon database integration
+- ✅ TypeScript + Tailwind CSS
+- ✅ API routes built-in
+- ✅ Easy Vercel deployment
+
+## 💰 Cost
+
+- **Vercel**: Free (Hobby) or $20/month (Pro)
+- **Neon DB**: Free or $19/month (Pro)
+- **Total**: $0-39/month
+
+## 🆘 Troubleshooting
+
+### Database Connection Error
+- Check `DATABASE_URL` in `.env.local`
+- Ensure `?sslmode=require` is at the end of the URL
+- Try using Neon's pooled connection string
+
+### Build Errors
+- Run `npm install` to ensure all dependencies are installed
+- Check TypeScript errors with `npm run check-types`
+- Clear `.next` folder and rebuild
+
+### API Routes Not Working
+- Ensure you're accessing routes at `/api/*`
+- Check the browser console for errors
+- Verify environment variables are set
+
+## 📚 Documentation
+
+- [Next.js Docs](https://nextjs.org/docs)
+- [Vercel Deployment](https://vercel.com/docs)
+- [Neon Database](https://neon.tech/docs)
+- [Drizzle ORM](https://orm.drizzle.team)
+
+## 🎉 Deploy Now!
+
+```bash
+# 1. Push to GitHub
+git add .
+git commit -m "Initial commit"
+git push origin main
+
+# 2. Deploy to Vercel
+# Visit: https://vercel.com/new
+# Import your repository
+# Add environment variables
+# Deploy!
+```
+
+Your app will be live in 2-3 minutes! 🚀
