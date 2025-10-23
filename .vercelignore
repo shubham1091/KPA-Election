@@ -41,9 +41,6 @@ DEPLOYMENT_*.md
 QUICK_START.md
 VERCEL_SINGLE_PROJECT.md
 
-# Scripts (not needed after build)
-scripts
-
 # Source maps (uncomment to exclude)
 # **/*.map
 

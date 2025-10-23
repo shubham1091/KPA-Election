@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "node scripts/build-vercel.js",
+  "buildCommand": "npm run build:vercel --workspaces=false",
   "installCommand": "npm install",
   "outputDirectory": "dist",
   "rewrites": [
