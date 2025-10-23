@@ -1,28 +1,11 @@
 // server/src/stv.ts
 import 'dotenv/config';
-import { Pool } from "pg";
+import { neon } from '@neondatabase/serverless';
 import crypto from "crypto";
 import { v4 as uuidv4 } from "uuid";
 
-// Parse DATABASE_URL to ensure password is treated as a string
-const parseDatabaseUrl = (url: string) => {
-  const parsed = new URL(url);
-  
-  // Determine if SSL is needed (for cloud databases like Neon, Supabase, etc.)
-  const needsSSL = parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1';
-  
-  return {
-    host: parsed.hostname,
-    port: parseInt(parsed.port) || 5432,
-    database: parsed.pathname.slice(1),
-    user: parsed.username,
-    password: parsed.password || '', // Ensure password is always a string, even if empty
-    ssl: needsSSL ? { rejectUnauthorized: false } : false,
-    connectionTimeoutMillis: 5000,
-  };
-};
-
-const pool = new Pool(parseDatabaseUrl(process.env.DATABASE_URL!));
+// Use Neon serverless driver for better Vercel compatibility
+const sql = neon(process.env.DATABASE_URL!);
 
 /**
  * Deterministic RNG based on seed
@@ -62,39 +45,29 @@ export async function runStvForPosition(
   positionId: string,
   seed?: string
 ) {
-  const client = await pool.connect();
   try {
     // 1) fetch candidates for position (not withdrawn)
-    const candRes = await client.query(
-      `SELECT id, display_name FROM candidates WHERE position_id = $1 AND election_id = $2 AND withdrawn = false`,
-      [positionId, electionId]
-    );
-    const candidates = candRes.rows.map((r: { id: string; display_name: string }) => ({ id: r.id, name: r.display_name }));
+    const candRes = await sql`SELECT id, display_name FROM candidates WHERE position_id = ${positionId} AND election_id = ${electionId} AND withdrawn = false`;
+    const candidates = candRes.map((r) => ({ id: r.id as string, name: r.display_name as string }));
     if (candidates.length === 0) {
       // nothing to count
-      await client.query(
-        `UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = $1 WHERE id = $2`,
-        [JSON.stringify({ error: "no candidates" }), jobId]
-      );
+      await sql`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = ${JSON.stringify({ error: "no candidates" })} WHERE id = ${jobId}`;
       return;
     }
 
     // 2) fetch ballots and build preference arrays for this position
     // We want for each ballot: ordered candidate ids by rank for this position only
-    const ballotsRes = await client.query(
-      `SELECT b.id as ballot_id, br.candidate_id, br.rank
+    const ballotsRes = await sql`SELECT b.id as ballot_id, br.candidate_id, br.rank
        FROM ballots b
        JOIN ballot_rankings br ON br.ballot_id = b.id
-       WHERE b.election_id = $1 AND br.position_id = $2
-       ORDER BY b.id, br.rank`,
-      [electionId, positionId]
-    );
+       WHERE b.election_id = ${electionId} AND br.position_id = ${positionId}
+       ORDER BY b.id, br.rank`;
 
     // build map ballot_id -> ordered array of candidate ids
     const ballotMap = new Map<string, string[]>();
-    for (const row of ballotsRes.rows) {
-      const bid: string = row.ballot_id;
-      const cid: string | undefined = row.candidate_id;
+    for (const row of ballotsRes) {
+      const bid = row.ballot_id as string;
+      const cid = row.candidate_id as string | undefined;
       if (!cid) continue; // skip malformed row
       if (!ballotMap.has(bid)) ballotMap.set(bid, []);
       ballotMap.get(bid)!.push(cid);
@@ -105,10 +78,7 @@ export async function runStvForPosition(
 
     const totalBallots = ballotsList.length;
     if (totalBallots === 0) {
-      await client.query(
-        `UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = $1 WHERE id = $2`,
-        [JSON.stringify({ error: "no ballots" }), jobId]
-      );
+      await sql`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = ${JSON.stringify({ error: "no ballots" })} WHERE id = ${jobId}`;
       return;
     }
 
@@ -277,10 +247,7 @@ export async function runStvForPosition(
 
     // Safety check: if we hit max rounds without electing anyone
     if (roundNumber >= MAX_ROUNDS && !elected) {
-      await client.query(
-        `UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = $1 WHERE id = $2`,
-        [JSON.stringify({ error: "Maximum rounds exceeded - possible infinite loop prevented" }), jobId]
-      );
+      await sql`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = ${JSON.stringify({ error: "Maximum rounds exceeded - possible infinite loop prevented" })} WHERE id = ${jobId}`;
       return;
     }
 
@@ -301,32 +268,22 @@ export async function runStvForPosition(
     // store each round into count_events
     for (let i = 0; i < rounds.length; i++) {
       const r = rounds[i];
-      await client.query(
-        `INSERT INTO count_events (id, job_id, round_number, payload, created_at)
-         VALUES ($1, $2, $3, $4, NOW())`,
-        [uuidv4(), jobId, r.round, JSON.stringify(r)]
-      );
+      const roundId = uuidv4();
+      await sql`INSERT INTO count_events (id, job_id, round_number, payload, created_at)
+         VALUES (${roundId}, ${jobId}, ${r.round}, ${JSON.stringify(r)}, NOW())`;
     }
 
     // update job row
-    await client.query(
-      `UPDATE count_jobs SET status = 'completed', finished_at = NOW(), result_summary = $1 WHERE id = $2`,
-      [JSON.stringify(resultSummary), jobId]
-    );
+    await sql`UPDATE count_jobs SET status = 'completed', finished_at = NOW(), result_summary = ${JSON.stringify(resultSummary)} WHERE id = ${jobId}`;
 
     return resultSummary;
   } catch (err) {
     console.error("runStvForPosition error:", err);
     try {
-      await client.query(`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = $1 WHERE id = $2`, [
-        JSON.stringify({ error: String(err) }),
-        jobId,
-      ]);
+      await sql`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = ${JSON.stringify({ error: String(err) })} WHERE id = ${jobId}`;
     } catch (e) {
       console.error("failed to update job status after error:", e);
     }
     throw err;
-  } finally {
-    client.release();
   }
 }
