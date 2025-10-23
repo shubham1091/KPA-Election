@@ -12,5 +12,4 @@ server/dist
 public/dist
 
 # Vercel build artifacts
-api/
 .vercel
