@@ -65,6 +65,23 @@ NODE_ENV=production
 - Set it to your full production URL (e.g., `https://your-site.vercel.app`)
 - The app will fall back to request headers or `VERCEL_URL` if not set, but explicit configuration is more reliable
 
+### Enable Fluid Compute (Recommended)
+
+For better performance and to handle long-running vote counts, enable **Fluid Compute** in Vercel:
+
+1. Open your project in Vercel Dashboard
+2. Go to **Settings** → **Functions**
+3. Scroll to **Fluid Compute** section
+4. Toggle **Enable Fluid Compute**
+5. **Redeploy** your project
+
+**Benefits:**
+- Extended function durations (up to 14 minutes on paid plans)
+- Better handling of background tasks (vote counting)
+- Reduced cold starts and optimized concurrency
+
+Learn more: [Vercel Fluid Compute Guide](https://vercel.com/guides/what-can-i-do-about-vercel-serverless-functions-timing-out)
+
 ## 🏗️ Project Structure
 
 ```

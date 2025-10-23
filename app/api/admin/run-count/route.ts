@@ -4,8 +4,10 @@ import { count_jobs } from '@/lib/schema'
 import { runStvForPosition } from '@/lib/stv'
 import { v4 as uuidv4 } from 'uuid'
 
-// Increase timeout for Vercel - max 60 seconds for Pro, 10 seconds for Hobby
-export const maxDuration = 60
+// Use Fluid Compute for better performance and extended durations
+// Free: up to 1 minute, Paid: up to 14 minutes
+// Enable in Vercel Dashboard: Settings > Functions > Fluid Compute
+export const maxDuration = 300 // 5 minutes (enough for most elections)
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,9 +41,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Run STV synchronously (await it so Vercel doesn't kill the process)
+    // Run STV counting synchronously
+    // With Fluid Compute enabled, this can run up to 5 minutes (maxDuration)
     try {
+      console.log(`🔄 Starting STV count for job ${job.id}`)
       await runStvForPosition(job.id, electionId, positionId, new Date().toISOString())
+      console.log(`✅ STV count completed for job ${job.id}`)
       
       return NextResponse.json({
         success: true,
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest) {
         message: 'Count completed successfully'
       })
     } catch (stvError) {
-      console.error('STV counting error:', stvError)
+      console.error(`❌ STV counting error for job ${job.id}:`, stvError)
       return NextResponse.json({
         success: false,
         job,
