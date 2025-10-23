@@ -1,6 +1,11 @@
 import { Election, Position, Candidate, Admin, TokenCheck, VoterImportResult, BallotSubmission, CountJob, VotersResponse } from '../types'
 
-const API_BASE = '/api'
+// Use VITE_API_URL from environment if available, otherwise use relative path for dev
+const API_BASE = typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api'
+
+console.log('API_BASE configured as:', API_BASE)
 
 class ApiClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
