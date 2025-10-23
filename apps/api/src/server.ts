@@ -13,9 +13,16 @@ export const createServer = (): Express => {
   const app = express();
   
   // Parse CLIENT_URL for multiple origins
+  const defaultOrigins = [
+    "http://localhost:3000", 
+    "http://localhost:3001",
+    "https://kpa-election-admin.vercel.app",
+    "https://kpa-election-voter.vercel.app"
+  ];
+  
   const allowedOrigins = process.env.CLIENT_URL 
     ? process.env.CLIENT_URL.split(',').map(url => url.trim())
-    : ["http://localhost:3000", "http://localhost:3001"];
+    : defaultOrigins;
   
   app
     .disable("x-powered-by")
