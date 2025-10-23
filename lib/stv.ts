@@ -146,6 +146,7 @@ export async function runStvForPosition(
 
     const rounds: RoundData[] = [];
     let roundNumber = 0;
+    const MAX_ROUNDS = 1000; // Safety limit to prevent infinite loops
 
     // helper: compute current tallies
     const computeTallies = () => {
@@ -169,7 +170,7 @@ export async function runStvForPosition(
     };
 
     // main loop
-    while (!elected && active.size > 0) {
+    while (!elected && active.size > 0 && roundNumber < MAX_ROUNDS) {
       roundNumber++;
       const { tallies, exhaustedCount } = computeTallies();
 
@@ -196,6 +197,22 @@ export async function runStvForPosition(
           action: { type: "elect", winner },
         });
         break;
+      }
+
+      // If only one candidate left, they win by default (prevents infinite loop)
+      if (active.size === 1) {
+        const lastCandidate = Array.from(active)[0];
+        if (lastCandidate) {
+          elected = lastCandidate;
+          active.delete(lastCandidate);
+          rounds.push({
+            round: roundNumber,
+            tallies: talliesObj,
+            exhausted: exhaustedCount,
+            action: { type: "elect", winner: lastCandidate },
+          });
+          break;
+        }
       }
 
       // No winner: eliminate candidate(s) with min votes
@@ -256,6 +273,20 @@ export async function runStvForPosition(
         exhausted: exhaustedCount,
         action: { type: "eliminate", eliminated: eliminatedThisRound, transfers },
       });
+    }
+
+    // Safety check: if we hit max rounds without electing anyone
+    if (roundNumber >= MAX_ROUNDS && !elected) {
+      await client.query(
+        `UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = $1 WHERE id = $2`,
+        [JSON.stringify({ error: "Maximum rounds exceeded - possible infinite loop prevented" }), jobId]
+      );
+      return;
+    }
+
+    // If no one was elected but we exited the loop, elect the last remaining candidate
+    if (!elected && active.size > 0) {
+      elected = Array.from(active)[0] || null;
     }
 
     // build result summary

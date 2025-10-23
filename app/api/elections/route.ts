@@ -3,6 +3,10 @@ import { db } from '@/lib/db'
 import { elections } from '@/lib/schema'
 import { desc } from 'drizzle-orm'
 
+// Force dynamic rendering to prevent caching
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET() {
   try {
     const allElections = await db
