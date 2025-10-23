@@ -12,19 +12,27 @@ import adminRouter from "./routes/admin";
 export const createServer = (): Express => {
   const app = express();
   
+  // Parse CLIENT_URL for multiple origins
+  const allowedOrigins = process.env.CLIENT_URL 
+    ? process.env.CLIENT_URL.split(',').map(url => url.trim())
+    : ["http://localhost:3000", "http://localhost:3001"];
+  
   app
     .disable("x-powered-by")
     .use(morgan("dev"))
     .use(urlencoded({ extended: true }))
     .use(json())
     .use(cors({
-      origin: process.env.CLIENT_URL || "http://localhost:3000",
+      origin: allowedOrigins,
       credentials: true,
     }))
     .get("/message/:name", (req, res) => {
       return res.json({ message: `hello ${req.params.name}` });
     })
     .get("/status", (_, res) => {
+      return res.json({ ok: true });
+    });
+    app.get("/", (_, res) => {
       return res.json({ ok: true });
     });
 
