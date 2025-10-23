@@ -61,8 +61,8 @@ if (fs.existsSync('api')) {
   fs.rmSync('api', { recursive: true, force: true });
 }
 
-// 2. Build all apps with Turbo
-run('npx turbo run build', 'Building all apps with Turborepo');
+// 2. Build only the necessary packages (API, Admin, Voter, and Shared)
+run('npx turbo run build --filter=@stv-election/shared --filter=api --filter=stv-election-admin --filter=stv-election-voter', 'Building required apps with Turborepo');
 
 // 3. Create dist directory structure
 console.log('📁 Creating unified dist directory...\n');

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "buildCommand": "cd /vercel/path0 && bash build.sh",
-  "installCommand": "npm install",
+  "installCommand": "npm install && npm install --workspaces",
   "outputDirectory": "dist",
   "rewrites": [
     {
