@@ -4,7 +4,17 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { BarChart3, ArrowLeft } from 'lucide-react'
 
-type Round = { tallies?: Record<string, number>; round?: string }
+type Round = {
+  round: number
+  tallies?: Record<string, number>
+  exhausted?: number
+  action?: {
+    type: 'elect' | 'eliminate'
+    winner?: string
+    eliminated?: string
+    transfers?: Array<{ from: string; to: string | null; ballotId: string }>
+  }
+}
 
 type JobSummary = { winner?: string; quota?: number; rounds?: unknown }
 
@@ -202,6 +212,219 @@ function Sparkline({ values }: { values: number[] }) {
   )
 }
 
+function RoundGrid({
+  rounds,
+  candidates,
+}: {
+  rounds: Round[]
+  candidates: { id: string; display_name: string }[]
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  // early exit for no rounds
+  if (!rounds || rounds.length === 0)
+    return <div className="text-sm text-gray-500">No round data</div>
+
+  // compute per-round totals and transfer maps
+  const roundTotals = rounds.map(r => {
+    const tallies = r.tallies ?? {}
+    const totalVotes = Object.values(tallies).reduce((s, v) => s + (v || 0), 0)
+    const exhausted = r.exhausted ?? 0
+    const totalBallots = totalVotes + exhausted
+    const transfers = (r.action?.transfers ?? []) as Array<{
+      from: string
+      to: string | null
+      ballotId: string
+    }>
+    const inMap: Record<string, string[]> = {}
+    const outMap: Record<string, string[]> = {}
+    for (const t of transfers) {
+      if (t.to) {
+        inMap[t.to] = inMap[t.to] || []
+        inMap[t.to].push(t.ballotId)
+      }
+      if (t.from) {
+        outMap[t.from] = outMap[t.from] || []
+        outMap[t.from].push(t.ballotId)
+      }
+    }
+    return { totalVotes, exhausted, totalBallots, inMap, outMap }
+  })
+
+  // expansion state for transfer details per round/candidate
+  const toggle = (key: string) => setExpanded(s => ({ ...s, [key]: !s[key] }))
+
+  // map candidate id -> display name for quick lookup
+  const nameFor = (id?: string | null) =>
+    candidates.find(c => c.id === id)?.display_name ?? id ?? ''
+
+  return (
+    <div className="overflow-auto border rounded">
+      <table className="min-w-full table-fixed text-sm text-gray-800">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="p-3 w-56 text-left text-sm font-semibold text-gray-700">Candidate</th>
+            {rounds.map(r => (
+              <th key={r.round} className="p-3 text-center text-sm font-medium text-gray-700">
+                Round {r.round}
+              </th>
+            ))}
+          </tr>
+          <tr className="bg-white">
+            <th />
+            {roundTotals.map((rt, i) => (
+              <th key={i} className="p-2 text-center text-xs text-gray-600">
+                {rt.totalBallots} ballots • {rt.totalVotes} votes • {rt.exhausted} exhausted
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {candidates.map(c => {
+            // determine if candidate was eliminated and in which round
+            let eliminatedRound: number | null = null
+            let electedRound: number | null = null
+            for (const r of rounds) {
+              if (r.action?.eliminated === c.id) eliminatedRound = r.round ?? null
+              if (r.action?.winner === c.id) electedRound = r.round ?? null
+            }
+
+            return (
+              <>
+                <tr key={c.id} className="border-t">
+                  <td className="p-3 align-middle">
+                    <div className="font-medium text-gray-800">{c.display_name}</div>
+                    <div className="text-sm text-gray-600">
+                      {eliminatedRound
+                        ? `Eliminated R${eliminatedRound}`
+                        : electedRound
+                        ? `Elected R${electedRound}`
+                        : ''}
+                    </div>
+                  </td>
+                  {rounds.map((r, idx) => {
+                    const votes = (r.tallies && (r.tallies as Record<string, number>)[c.id]) ?? 0
+                    const tInList = roundTotals[idx].inMap[c.id] ?? []
+                    const tOutList = roundTotals[idx].outMap[c.id] ?? []
+                    const tIn = tInList.length
+                    const tOut = tOutList.length
+                    const isEliminatedHere = r.action?.eliminated === c.id
+                    const isElectedHere = r.action?.winner === c.id
+                    const key = `${r.round}-${c.id}`
+                    const pct =
+                      roundTotals[idx].totalBallots > 0
+                        ? (votes / roundTotals[idx].totalBallots) * 100
+                        : 0
+                    return (
+                      <td
+                        key={r.round}
+                        className={`p-3 align-middle text-center ${
+                          isEliminatedHere ? 'bg-red-50' : isElectedHere ? 'bg-green-50' : ''
+                        }`}
+                      >
+                        <div className="text-lg font-semibold text-gray-800">{votes}</div>
+                        <div className="text-sm text-gray-700 mt-1">{pct.toFixed(1)}%</div>
+                        <div className="text-sm text-gray-700 mt-1">
+                          {tIn > 0 && (
+                            <button
+                              onClick={() => toggle(key)}
+                              className="text-green-700 font-medium"
+                            >
+                              +{tIn}
+                            </button>
+                          )}
+                          {tOut > 0 && <span className="text-red-700 ml-2">-{tOut}</span>}
+                        </div>
+                        {isEliminatedHere && (
+                          <div className="inline-block text-xs text-red-800 bg-red-100 px-2 py-0.5 rounded mt-2">
+                            Eliminated
+                          </div>
+                        )}
+                        {isElectedHere && (
+                          <div className="inline-block text-xs text-green-800 bg-green-100 px-2 py-0.5 rounded mt-2">
+                            Elected
+                          </div>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+
+                {/* Expanded transfer details row */}
+                {rounds.map(r => {
+                  const key = `${r.round}-${c.id}`
+                  if (!expanded[key]) return null
+                  const tInList =
+                    roundTotals.find((_, i) => rounds[i].round === r.round)!.inMap[c.id] ?? []
+                  return (
+                    <tr key={`details-${key}`} className="bg-gray-50">
+                      <td colSpan={rounds.length + 1} className="p-3">
+                        <div className="text-sm text-gray-700 font-medium">
+                          Transfers to {c.display_name} in Round {r.round}
+                        </div>
+                        <div className="mt-2">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr>
+                                <th className="text-left text-xs text-gray-600 p-1">
+                                  From Candidate
+                                </th>
+                                <th className="text-left text-xs text-gray-600 p-1">Count</th>
+                                <th className="text-left text-xs text-gray-600 p-1">
+                                  Sample Ballots
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(
+                                roundTotals.find((_, i) => rounds[i].round === r.round)!.outMap ||
+                                  {}
+                              ).map(([fromId, ballots]) => {
+                                // only show rows where these ballots moved to this candidate
+                                const moved = ballots.filter(bid => tInList.includes(bid))
+                                if (moved.length === 0) return null
+                                return (
+                                  <tr key={fromId}>
+                                    <td className="p-1">{nameFor(fromId)}</td>
+                                    <td className="p-1">{moved.length}</td>
+                                    <td className="p-1 text-gray-600">
+                                      {moved.slice(0, 5).join(', ')}
+                                      {moved.length > 5 ? '…' : ''}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                              {tInList.length === 0 && (
+                                <tr>
+                                  <td className="p-1 text-gray-600" colSpan={3}>
+                                    No transfers to this candidate in this round.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </>
+            )
+          })}
+
+          {/* exhausted row */}
+          <tr className="border-t bg-gray-100">
+            <td className="p-3 font-semibold text-gray-800">Exhausted</td>
+            {roundTotals.map((rt, idx) => (
+              <td key={idx} className="p-3 text-center font-medium text-gray-800">
+                {rt.exhausted}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
 export default function StatsPage() {
   const params = useParams()
   const router = useRouter()
@@ -376,25 +599,34 @@ export default function StatsPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">{pos.position.name}</h3>
-                    {pos.position.description && <p className="text-sm text-gray-500">{pos.position.description}</p>}
+                    {pos.position.description && (
+                      <p className="text-sm text-gray-500">{pos.position.description}</p>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="text-sm text-gray-500">Winner</div>
                     <div className="text-xl font-semibold text-green-700">{winnerName}</div>
-                    <div className="text-sm text-gray-500 mt-1">{pos.job?.status || 'no count'}</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {pos.job?.status || 'no count'}
+                    </div>
                   </div>
                 </div>
 
                 <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">First Preference Votes</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                      First Preference Votes
+                    </h4>
                     <div className="flex items-start gap-6">
                       <div className="w-36 shrink-0 flex items-center justify-center">
                         <PieChart data={candData} size={120} />
                       </div>
                       <div className="flex-1">
                         <HorizontalBarChart data={candData} />
-                        <div className="mt-4 text-sm text-gray-500">Total first preferences: {totalFP} • Ballots for position: {pos.ballotsForPosition}</div>
+                        <div className="mt-4 text-sm text-gray-500">
+                          Total first preferences: {totalFP} • Ballots for position:{' '}
+                          {pos.ballotsForPosition}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -402,13 +634,17 @@ export default function StatsPage() {
                   <div className="flex flex-col items-center justify-center">
                     <div className="text-sm text-gray-600 mb-2">Ballots vs Registered</div>
                     <Donut value={pos.ballotsForPosition} total={report.voters} />
-                    <div className="text-sm text-gray-500 mt-2">Blank ballots for position: {pos.blankBallots}</div>
+                    <div className="text-sm text-gray-500 mt-2">
+                      Blank ballots for position: {pos.blankBallots}
+                    </div>
                   </div>
                 </div>
 
                 {showRounds && (
                   <div className="mt-6">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">Rounds (tallies per round)</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                      Rounds (tallies per round)
+                    </h4>
                     {pos.rounds && pos.rounds.length > 0 ? (
                       <div>
                         {/* sparkline: total ballots present per round */}
@@ -417,12 +653,21 @@ export default function StatsPage() {
                             const totals = pos.rounds.map((r: unknown) => {
                               const rObj = r as { tallies?: Record<string, number> }
                               const tallies = rObj.tallies ?? {}
-                              return Object.values(tallies).reduce((s: number, v: number) => s + (Number(v) || 0), 0)
+                              return Object.values(tallies).reduce(
+                                (s: number, v: number) => s + (Number(v) || 0),
+                                0
+                              )
                             })
                             return <Sparkline values={totals} />
                           })()}
                         </div>
                         <RoundsLineChart rounds={pos.rounds} candidates={pos.candidates} />
+                        <div className="mt-4">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">
+                            Round-by-round details
+                          </h5>
+                          <RoundGrid rounds={pos.rounds} candidates={pos.candidates} />
+                        </div>
                       </div>
                     ) : (
                       <div className="text-sm text-gray-500">No round data available</div>
