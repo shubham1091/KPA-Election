@@ -44,6 +44,12 @@ export default function PositionDetail() {
     manifesto_link: '',
     withdrawn: false,
   })
+  const [showPositionForm, setShowPositionForm] = useState(false)
+  const [positionForm, setPositionForm] = useState({
+    name: '',
+    description: '',
+    seats: 1,
+  })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -130,7 +136,7 @@ export default function PositionDetail() {
 
       if (response.ok) {
         const updated = await response.json()
-        setCandidates(candidates.map((c) => (c.id === editingCandidate.id ? updated : c)))
+        setCandidates(candidates.map(c => (c.id === editingCandidate.id ? updated : c)))
         handleCloseForm()
       }
     } catch (err) {
@@ -149,7 +155,7 @@ export default function PositionDetail() {
       })
 
       if (response.ok) {
-        setCandidates(candidates.filter((c) => c.id !== candidateId))
+        setCandidates(candidates.filter(c => c.id !== candidateId))
       }
     } catch (err) {
       console.error('Failed to delete candidate:', err)
@@ -170,6 +176,47 @@ export default function PositionDetail() {
     setShowCandidateForm(false)
     setEditingCandidate(null)
     setNewCandidate({ display_name: '', manifesto_link: '', withdrawn: false })
+  }
+
+  const handleOpenPositionForm = () => {
+    if (!position) return
+    setPositionForm({
+      name: position.name || '',
+      description: position.description || '',
+      seats: position.seats || 1,
+    })
+    setShowPositionForm(true)
+  }
+
+  const handleUpdatePosition = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!position) return
+
+    setSaving(true)
+    try {
+      const response = await fetch('/api/admin/positions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: position.id,
+          name: positionForm.name,
+          description: positionForm.description || null,
+          seats: Number(positionForm.seats) || 1,
+        }),
+      })
+
+      if (response.ok) {
+        const updated = await response.json()
+        setPosition(updated)
+        setShowPositionForm(false)
+      } else {
+        console.error('Failed to update position, status:', response.status)
+      }
+    } catch (err) {
+      console.error('Failed to update position:', err)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -217,13 +264,22 @@ export default function PositionDetail() {
               </div>
             </div>
             {election.status === 'draft' && (
-              <button
-                onClick={() => setShowCandidateForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Candidate
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleOpenPositionForm}
+                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Position
+                </button>
+                <button
+                  onClick={() => setShowCandidateForm(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Candidate
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -277,7 +333,7 @@ export default function PositionDetail() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {candidates.map((candidate) => (
+                {candidates.map(candidate => (
                   <div
                     key={candidate.id}
                     className={`border rounded-lg p-6 ${
@@ -358,7 +414,7 @@ export default function PositionDetail() {
                     type="text"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     value={newCandidate.display_name}
-                    onChange={(e) =>
+                    onChange={e =>
                       setNewCandidate({ ...newCandidate, display_name: e.target.value })
                     }
                     required
@@ -370,9 +426,9 @@ export default function PositionDetail() {
                   </label>
                   <input
                     type="url"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-500"
                     value={newCandidate.manifesto_link}
-                    onChange={(e) =>
+                    onChange={e =>
                       setNewCandidate({ ...newCandidate, manifesto_link: e.target.value })
                     }
                     placeholder="https://example.com/manifesto"
@@ -384,7 +440,7 @@ export default function PositionDetail() {
                       type="checkbox"
                       className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                       checked={newCandidate.withdrawn}
-                      onChange={(e) =>
+                      onChange={e =>
                         setNewCandidate({ ...newCandidate, withdrawn: e.target.checked })
                       }
                     />
@@ -405,11 +461,75 @@ export default function PositionDetail() {
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
                     disabled={saving}
                   >
-                    {saving
-                      ? 'Saving...'
-                      : editingCandidate
-                        ? 'Update Candidate'
-                        : 'Add Candidate'}
+                    {saving ? 'Saving...' : editingCandidate ? 'Update Candidate' : 'Add Candidate'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Position Edit Modal */}
+      {showPositionForm && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Position</h3>
+              <form onSubmit={handleUpdatePosition}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Position Name
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={positionForm.name}
+                    onChange={e => setPositionForm({ ...positionForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description (optional)
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    value={positionForm.description}
+                    onChange={e =>
+                      setPositionForm({ ...positionForm, description: e.target.value })
+                    }
+                    rows={3}
+                  />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Seats</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-md"
+                    value={positionForm.seats}
+                    onChange={e =>
+                      setPositionForm({ ...positionForm, seats: Number(e.target.value) })
+                    }
+                    required
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowPositionForm(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                    disabled={saving}
+                  >
+                    {saving ? 'Saving...' : 'Save Position'}
                   </button>
                 </div>
               </form>

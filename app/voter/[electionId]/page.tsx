@@ -43,6 +43,16 @@ type Candidate = {
   withdrawn: boolean
 }
 
+// Fisher-Yates shuffle - returns a new shuffled array
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 // Sortable Candidate Item Component
 function SortableCandidate({
   candidate,
@@ -298,13 +308,15 @@ export default function VoterElectionPage({ params }: { params: Promise<{ electi
         setPositions(positionsData)
         setCandidates(candidatesData)
 
-        // Initialize rankings
+        // Initialize rankings (shuffle candidates so each voter sees a different order)
         const initialRankings: Record<string, string[]> = {}
         positionsData.forEach((position: Position) => {
           const positionCandidates = candidatesData
             .filter((c: Candidate) => c.position_id === position.id && !c.withdrawn)
             .map((c: Candidate) => c.id)
-          initialRankings[position.id] = positionCandidates
+
+          // randomize order for this voter's session
+          initialRankings[position.id] = shuffle(positionCandidates)
         })
         setRankings(initialRankings)
       }

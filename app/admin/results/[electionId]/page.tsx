@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { BarChart3, Trophy, Clock, CheckCircle, XCircle, ArrowLeft } from 'lucide-react'
+import { BarChart3, Trophy, Clock, CheckCircle, XCircle, ArrowLeft, Download } from 'lucide-react'
 
 type Election = {
   id: string
@@ -82,6 +82,25 @@ export default function ElectionResults() {
   const [counting, setCounting] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState<PositionResult | null>(null)
   const [showRoundDetails, setShowRoundDetails] = useState(false)
+
+  const downloadStats = async () => {
+    try {
+      const res = await fetch(`/api/admin/stats/report?electionId=${params.electionId}&format=csv`)
+      if (!res.ok) throw new Error('Failed to fetch stats')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `election_${params.electionId}_stats.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Download stats failed:', err)
+      alert('Failed to download stats: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    }
+  }
 
   useEffect(() => {
     loadResults()
@@ -172,7 +191,11 @@ export default function ElectionResults() {
   }
 
   const handleStartCount = async () => {
-    if (!confirm('Start counting votes for this election? This will calculate results for all positions.')) {
+    if (
+      !confirm(
+        'Start counting votes for this election? This will calculate results for all positions.'
+      )
+    ) {
       return
     }
 
@@ -216,7 +239,7 @@ export default function ElectionResults() {
 
   const getCandidateName = (candidateId: string) => {
     for (const result of results) {
-      const candidate = result.candidates.find((c) => c.id === candidateId)
+      const candidate = result.candidates.find(c => c.id === candidateId)
       if (candidate) return candidate.display_name
     }
     return 'Unknown Candidate'
@@ -270,16 +293,27 @@ export default function ElectionResults() {
             </div>
             <div className="flex items-center space-x-3">
               <div className="text-sm text-gray-500">
-                {results.filter((r) => r.job?.status === 'completed').length} of {results.length}{' '}
+                {results.filter(r => r.job?.status === 'completed').length} of {results.length}{' '}
                 positions counted
               </div>
-              {results.length > 0 && results.every((r) => !r.job) && (
+              {results.length > 0 && results.every(r => !r.job) && (
                 <button
                   onClick={handleStartCount}
                   disabled={counting}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {counting ? 'Starting Count...' : 'Start Count'}
+                </button>
+              )}
+
+              {/* Download stats (CSV) visible after election closed */}
+              {election?.status === 'closed' && (
+                <button
+                  onClick={downloadStats}
+                  className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-md hover:bg-gray-50 flex items-center space-x-2"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download Stats</span>
                 </button>
               )}
             </div>
@@ -312,7 +346,7 @@ export default function ElectionResults() {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-gray-900">
-                    {results.filter((r) => r.job?.status === 'completed').length}
+                    {results.filter(r => r.job?.status === 'completed').length}
                   </div>
                   <div className="text-sm text-gray-500">Results Ready</div>
                 </div>
@@ -331,7 +365,7 @@ export default function ElectionResults() {
             </div>
           ) : (
             <div className="space-y-6">
-              {results.map((result) => (
+              {results.map(result => (
                 <div key={result.position.id} className="bg-white shadow rounded-lg p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -387,36 +421,40 @@ export default function ElectionResults() {
                       </div>
 
                       {/* Result Details */}
-                      {(() => {
-                        const summary = result.job.result_summary as ResultSummary;
-                        return typeof summary.totalBallots === 'number' ? (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-gray-50 rounded-lg p-4">
-                              <div className="text-sm text-gray-500">Total Ballots</div>
-                              <div className="text-2xl font-bold text-gray-900">
-                                {summary.totalBallots}
+                      {
+                        (() => {
+                          const summary = result.job.result_summary as ResultSummary
+                          return typeof summary.totalBallots === 'number' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="bg-gray-50 rounded-lg p-4">
+                                <div className="text-sm text-gray-500">Total Ballots</div>
+                                <div className="text-2xl font-bold text-gray-900">
+                                  {summary.totalBallots}
+                                </div>
+                              </div>
+                              <div className="bg-gray-50 rounded-lg p-4">
+                                <div className="text-sm text-gray-500">Quota</div>
+                                <div className="text-2xl font-bold text-gray-900">
+                                  {summary.quota || 'N/A'}
+                                </div>
+                              </div>
+                              <div className="bg-gray-50 rounded-lg p-4">
+                                <div className="text-sm text-gray-500">Rounds</div>
+                                <div className="text-2xl font-bold text-gray-900">
+                                  {summary.rounds || 'N/A'}
+                                </div>
                               </div>
                             </div>
-                            <div className="bg-gray-50 rounded-lg p-4">
-                              <div className="text-sm text-gray-500">Quota</div>
-                              <div className="text-2xl font-bold text-gray-900">
-                                {summary.quota || 'N/A'}
-                              </div>
-                            </div>
-                            <div className="bg-gray-50 rounded-lg p-4">
-                              <div className="text-sm text-gray-500">Rounds</div>
-                              <div className="text-2xl font-bold text-gray-900">
-                                {summary.rounds || 'N/A'}
-                              </div>
-                            </div>
-                          </div>
-                        ) : null;
-                      })() as React.ReactNode}
+                          ) : null
+                        })() as React.ReactNode
+                      }
 
                       {/* Detailed Vote Counts */}
                       {result.job.result_summary.firstPreferences && (
                         <div className="mt-6">
-                          <h4 className="text-sm font-medium text-gray-900 mb-3">First Preference Votes</h4>
+                          <h4 className="text-sm font-medium text-gray-900 mb-3">
+                            First Preference Votes
+                          </h4>
                           <div className="space-y-3">
                             {Object.entries(result.job.result_summary.firstPreferences)
                               .sort(([, a], [, b]) => (b as number) - (a as number))
@@ -426,9 +464,10 @@ export default function ElectionResults() {
 
                                 const voteCount = votes as number
                                 const totalBallots = result.job?.result_summary?.totalBallots || 0
-                                const percentage = totalBallots > 0
-                                  ? ((voteCount / totalBallots) * 100).toFixed(1)
-                                  : 0
+                                const percentage =
+                                  totalBallots > 0
+                                    ? ((voteCount / totalBallots) * 100).toFixed(1)
+                                    : 0
 
                                 const isWinner = candidateId === result.job?.result_summary?.winner
 
@@ -436,22 +475,29 @@ export default function ElectionResults() {
                                   <div key={candidateId} className="relative">
                                     <div className="flex items-center justify-between mb-1">
                                       <div className="flex items-center space-x-2">
-                                        {isWinner && (
-                                          <Trophy className="h-4 w-4 text-yellow-500" />
-                                        )}
-                                        <span className={`text-sm ${isWinner ? 'font-semibold text-green-900' : 'text-gray-900'}`}>
+                                        {isWinner && <Trophy className="h-4 w-4 text-yellow-500" />}
+                                        <span
+                                          className={`text-sm ${
+                                            isWinner
+                                              ? 'font-semibold text-green-900'
+                                              : 'text-gray-900'
+                                          }`}
+                                        >
                                           {candidate.display_name}
                                         </span>
                                       </div>
                                       <div className="flex items-center space-x-3">
                                         <span className="text-sm text-gray-500">{percentage}%</span>
-                                        <span className="text-sm font-medium text-gray-900">{voteCount} votes</span>
+                                        <span className="text-sm font-medium text-gray-900">
+                                          {voteCount} votes
+                                        </span>
                                       </div>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-2">
                                       <div
-                                        className={`h-2 rounded-full ${isWinner ? 'bg-green-500' : 'bg-blue-500'
-                                          }`}
+                                        className={`h-2 rounded-full ${
+                                          isWinner ? 'bg-green-500' : 'bg-blue-500'
+                                        }`}
                                         style={{ width: `${percentage}%` }}
                                       ></div>
                                     </div>
@@ -516,13 +562,14 @@ export default function ElectionResults() {
                   <div className="mt-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Candidates:</h4>
                     <div className="flex flex-wrap gap-2">
-                      {result.candidates.map((candidate) => (
+                      {result.candidates.map(candidate => (
                         <span
                           key={candidate.id}
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${candidate.withdrawn
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${
+                            candidate.withdrawn
                               ? 'bg-gray-100 text-gray-600 line-through'
                               : 'bg-indigo-100 text-indigo-800'
-                            }`}
+                          }`}
                         >
                           {candidate.display_name}
                         </span>

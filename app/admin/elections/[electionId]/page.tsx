@@ -60,6 +60,13 @@ export default function ElectionDetail() {
     hasPrev: boolean
     hasNext: boolean
   } | null>(null)
+  const [stats, setStats] = useState<{
+    positions: number
+    candidates: number
+    voters: number
+    ballots: number
+    jobs: { total: number; queued: number; running: number; completed: number; failed: number }
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [showPositionForm, setShowPositionForm] = useState(false)
   const [showEditForm, setShowEditForm] = useState(false)
@@ -70,6 +77,8 @@ export default function ElectionDetail() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
+  const [voterQuery, setVoterQuery] = useState('')
+  const [voterStatus, setVoterStatus] = useState<'all' | 'voted' | 'not_voted'>('all')
 
   useEffect(() => {
     loadElectionData()
@@ -78,10 +87,11 @@ export default function ElectionDetail() {
 
   const loadElectionData = async () => {
     try {
-      const [electionsRes, positionsRes, candidatesRes] = await Promise.all([
+      const [electionsRes, positionsRes, candidatesRes, statsRes] = await Promise.all([
         fetch('/api/elections'),
         fetch(`/api/admin/positions?electionId=${params.electionId}`),
         fetch(`/api/admin/candidates?electionId=${params.electionId}`),
+        fetch(`/api/admin/stats?electionId=${params.electionId}`),
       ])
 
       if (electionsRes.ok) {
@@ -103,6 +113,11 @@ export default function ElectionDetail() {
         setCandidates(candidatesData)
       }
 
+      if (statsRes && statsRes.ok) {
+        const s = await statsRes.json()
+        setStats(s)
+      }
+
       await loadVoters()
     } catch (err) {
       console.error('Failed to load election data:', err)
@@ -111,11 +126,23 @@ export default function ElectionDetail() {
     }
   }
 
-  const loadVoters = async (page = votersPage, limit = votersLimit) => {
+  const loadVoters = async (
+    page = votersPage,
+    limit = votersLimit,
+    q: string | undefined = voterQuery,
+    status: string | undefined = voterStatus === 'all' ? undefined : voterStatus
+  ) => {
     try {
-      const response = await fetch(
-        `/api/admin/voters?electionId=${params.electionId}&page=${page}&limit=${limit}`
-      )
+      const qs = new URLSearchParams({
+        electionId: params.electionId as string,
+        page: String(page),
+        limit: String(limit),
+      })
+
+      if (q) qs.set('q', q)
+      if (status) qs.set('status', status)
+
+      const response = await fetch(`/api/admin/voters?${qs.toString()}`)
       if (response.ok) {
         const data = await response.json()
         setVoters(data.voters)
@@ -400,18 +427,22 @@ export default function ElectionDetail() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-          <button
-            onClick={() => router.push('/admin/dashboard')}
-            className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to Dashboard
-          </button>
+              <button
+                onClick={() => router.push('/admin/dashboard')}
+                className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center"
+              >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Back to Dashboard
+              </button>
               <h1 className="text-3xl font-bold text-gray-900">{election.name}</h1>
               <div className="flex items-center space-x-4 mt-2">
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(election.status)}`}>
-                {election.status}
-              </span>
+                <span
+                  className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                    election.status
+                  )}`}
+                >
+                  {election.status}
+                </span>
                 <span className="text-sm text-gray-500">{positions.length} positions</span>
                 <span className="text-sm text-gray-500">{candidates.length} candidates</span>
                 <span className="text-sm text-gray-500">
@@ -422,10 +453,10 @@ export default function ElectionDetail() {
             <div className="flex items-center space-x-3">
               {election.status === 'draft' && (
                 <>
-            <button
+                  <button
                     onClick={() => setShowPositionForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-            >
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Position
                   </button>
@@ -481,7 +512,16 @@ export default function ElectionDetail() {
                 >
                   <BarChart3 className="h-4 w-4 mr-2" />
                   View Results
-            </button>
+                </button>
+              )}
+              {election.status === 'closed' && (
+                <button
+                  onClick={() => router.push(`/admin/stats/${params.electionId}`)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700"
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  View Stats
+                </button>
               )}
             </div>
           </div>
@@ -499,6 +539,31 @@ export default function ElectionDetail() {
                 {election.description && (
                   <p className="mt-2 text-gray-600">{election.description}</p>
                 )}
+                {/* Small stats row */}
+                <div className="mt-4 flex flex-wrap items-center gap-6 text-sm text-gray-600">
+                  <div className="flex flex-col">
+                    <div className="text-xs text-gray-500">Positions</div>
+                    <div className="font-semibold text-gray-900">
+                      {stats ? stats.positions : positions.length}
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="text-xs text-gray-500">Candidates</div>
+                    <div className="font-semibold text-gray-900">
+                      {stats ? stats.candidates : candidates.length}
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="text-xs text-gray-500">Voters</div>
+                    <div className="font-semibold text-gray-900">
+                      {stats ? stats.voters : votersPagination?.totalCount ?? voters.length}
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="text-xs text-gray-500">Votes Cast</div>
+                    <div className="font-semibold text-gray-900">{stats ? stats.ballots : '—'}</div>
+                  </div>
+                </div>
               </div>
               {election.status === 'draft' && (
                 <button
@@ -535,15 +600,15 @@ export default function ElectionDetail() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {positions.map((position) => {
-                  const positionCandidates = candidates.filter((c) => c.position_id === position.id)
+                {positions.map(position => {
+                  const positionCandidates = candidates.filter(c => c.position_id === position.id)
                   return (
                     <div
                       key={position.id}
                       className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
                     >
                       <div className="flex justify-between items-start mb-4">
-                <div>
+                        <div>
                           <h4 className="text-lg font-medium text-gray-900">{position.name}</h4>
                           {position.description && (
                             <p className="text-sm text-gray-600 mt-1">{position.description}</p>
@@ -599,9 +664,7 @@ export default function ElectionDetail() {
               <div className="flex items-center space-x-4">
                 <h3 className="text-lg font-medium text-gray-900">Voters</h3>
                 {votersPagination && (
-                  <span className="text-sm text-gray-500">
-                    {votersPagination.totalCount} total
-                  </span>
+                  <span className="text-sm text-gray-500">{votersPagination.totalCount} total</span>
                 )}
               </div>
               <div className="flex items-center space-x-2">
@@ -626,6 +689,51 @@ export default function ElectionDetail() {
               </div>
             </div>
 
+            {/* Filters */}
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  placeholder="Search name, student ID, email or token"
+                  value={voterQuery}
+                  onChange={e => setVoterQuery(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm w-64"
+                />
+                <select
+                  value={voterStatus}
+                  onChange={e => setVoterStatus(e.target.value as 'all' | 'voted' | 'not_voted')}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="all">All</option>
+                  <option value="voted">Voted</option>
+                  <option value="not_voted">Not Voted</option>
+                </select>
+                <button
+                  onClick={() =>
+                    loadVoters(
+                      1,
+                      votersLimit,
+                      voterQuery,
+                      voterStatus === 'all' ? undefined : voterStatus
+                    )
+                  }
+                  className="px-3 py-2 bg-indigo-600 text-white rounded-md text-sm"
+                >
+                  Filter
+                </button>
+                <button
+                  onClick={() => {
+                    setVoterQuery('')
+                    setVoterStatus('all')
+                    loadVoters(1, votersLimit, undefined, undefined)
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
             {voters.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="mx-auto h-12 w-12 text-gray-400" />
@@ -634,174 +742,181 @@ export default function ElectionDetail() {
               </div>
             ) : (
               <>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Student ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Email
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Token
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Voting Link
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {voters.map((voter) => (
-                      <tr key={voter.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {voter.full_name || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {voter.student_id || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {voter.email || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                          <span className="truncate block max-w-[120px]" title={voter.real_token}>
-                            {voter.real_token}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={() => copyUrlToClipboard(voter)}
-                            className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                              copiedUrl === voter.real_token
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                            }`}
-                          >
-                            {copiedUrl === voter.real_token ? (
-                              <>
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="h-3 w-3 mr-1" />
-                                Copy Link
-                              </>
-                            )}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              voter.token_used_at
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {voter.token_used_at ? 'Voted' : 'Not Voted'}
-                          </span>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Student ID
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Email
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Token
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Voting Link
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Status
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {voters.map(voter => (
+                        <tr key={voter.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {voter.full_name || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {voter.student_id || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {voter.email || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                            <span className="truncate block max-w-[120px]" title={voter.real_token}>
+                              {voter.real_token}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button
+                              onClick={() => copyUrlToClipboard(voter)}
+                              className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                                copiedUrl === voter.real_token
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                              }`}
+                            >
+                              {copiedUrl === voter.real_token ? (
+                                <>
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Copied!
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3 mr-1" />
+                                  Copy Link
+                                </>
+                              )}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                voter.token_used_at
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {voter.token_used_at ? 'Voted' : 'Not Voted'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              {/* Pagination Controls */}
-              {votersPagination && votersPagination.totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-700">
-                      Showing {Math.min((votersPage - 1) * votersLimit + 1, votersPagination.totalCount)} to {Math.min(votersPage * votersLimit, votersPagination.totalCount)} of {votersPagination.totalCount} voters
-                    </span>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    {/* Items per page */}
-                    <select
-                      value={votersLimit}
-                      onChange={(e) => {
-                        setVotersLimit(parseInt(e.target.value))
-                        setVotersPage(1)
-                        loadVoters(1, parseInt(e.target.value))
-                      }}
-                      className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-900 bg-white"
-                    >
-                      <option value="10">10 per page</option>
-                      <option value="25">25 per page</option>
-                      <option value="50">50 per page</option>
-                      <option value="100">100 per page</option>
-                    </select>
-
-                    {/* Previous button */}
-                    <button
-                      onClick={() => {
-                        if (votersPagination.hasPrev) {
-                          const newPage = votersPage - 1
-                          setVotersPage(newPage)
-                          loadVoters(newPage, votersLimit)
-                        }
-                      }}
-                      disabled={!votersPagination.hasPrev}
-                      className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-
-                    {/* Page numbers */}
-                    <div className="flex items-center space-x-1">
-                      {Array.from({ length: Math.min(5, votersPagination.totalPages) }, (_, i) => {
-                        const pageNum = votersPage <= 3 
-                          ? i + 1 
-                          : votersPage >= votersPagination.totalPages - 2
-                            ? votersPagination.totalPages - 4 + i
-                            : votersPage - 2 + i
-                        
-                        if (pageNum < 1 || pageNum > votersPagination.totalPages) return null
-                        
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => {
-                              setVotersPage(pageNum)
-                              loadVoters(pageNum, votersLimit)
-                            }}
-                            className={`px-3 py-1 rounded-md text-sm font-medium ${
-                              pageNum === votersPage
-                                ? 'bg-indigo-600 text-white'
-                                : 'text-gray-700 hover:bg-gray-100'
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        )
-                      })}
+                {/* Pagination Controls */}
+                {votersPagination && votersPagination.totalPages > 1 && (
+                  <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-700">
+                        Showing{' '}
+                        {Math.min((votersPage - 1) * votersLimit + 1, votersPagination.totalCount)}{' '}
+                        to {Math.min(votersPage * votersLimit, votersPagination.totalCount)} of{' '}
+                        {votersPagination.totalCount} voters
+                      </span>
                     </div>
 
-                    {/* Next button */}
-                    <button
-                      onClick={() => {
-                        if (votersPagination.hasNext) {
-                          const newPage = votersPage + 1
-                          setVotersPage(newPage)
-                          loadVoters(newPage, votersLimit)
-                        }
-                      }}
-                      disabled={!votersPagination.hasNext}
-                      className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      {/* Items per page */}
+                      <select
+                        value={votersLimit}
+                        onChange={e => {
+                          setVotersLimit(parseInt(e.target.value))
+                          setVotersPage(1)
+                          loadVoters(1, parseInt(e.target.value))
+                        }}
+                        className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-900 bg-white"
+                      >
+                        <option value="10">10 per page</option>
+                        <option value="25">25 per page</option>
+                        <option value="50">50 per page</option>
+                        <option value="100">100 per page</option>
+                      </select>
+
+                      {/* Previous button */}
+                      <button
+                        onClick={() => {
+                          if (votersPagination.hasPrev) {
+                            const newPage = votersPage - 1
+                            setVotersPage(newPage)
+                            loadVoters(newPage, votersLimit)
+                          }
+                        }}
+                        disabled={!votersPagination.hasPrev}
+                        className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+
+                      {/* Page numbers */}
+                      <div className="flex items-center space-x-1">
+                        {Array.from(
+                          { length: Math.min(5, votersPagination.totalPages) },
+                          (_, i) => {
+                            const pageNum =
+                              votersPage <= 3
+                                ? i + 1
+                                : votersPage >= votersPagination.totalPages - 2
+                                ? votersPagination.totalPages - 4 + i
+                                : votersPage - 2 + i
+
+                            if (pageNum < 1 || pageNum > votersPagination.totalPages) return null
+
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => {
+                                  setVotersPage(pageNum)
+                                  loadVoters(pageNum, votersLimit)
+                                }}
+                                className={`px-3 py-1 rounded-md text-sm font-medium ${
+                                  pageNum === votersPage
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            )
+                          }
+                        )}
+                      </div>
+
+                      {/* Next button */}
+                      <button
+                        onClick={() => {
+                          if (votersPagination.hasNext) {
+                            const newPage = votersPage + 1
+                            setVotersPage(newPage)
+                            loadVoters(newPage, votersLimit)
+                          }
+                        }}
+                        disabled={!votersPagination.hasNext}
+                        className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               </>
             )}
           </div>
@@ -816,22 +931,26 @@ export default function ElectionDetail() {
               <h3 className="text-lg font-medium text-gray-900 mb-4">Add Position</h3>
               <form onSubmit={handleCreatePosition}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Position Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Position Name
+                  </label>
                   <input
                     type="text"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     value={newPosition.name}
-                    onChange={(e) => setNewPosition({ ...newPosition, name: e.target.value })}
+                    onChange={e => setNewPosition({ ...newPosition, name: e.target.value })}
                     required
                   />
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
                   <textarea
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     rows={3}
                     value={newPosition.description}
-                    onChange={(e) => setNewPosition({ ...newPosition, description: e.target.value })}
+                    onChange={e => setNewPosition({ ...newPosition, description: e.target.value })}
                   />
                 </div>
                 <div className="mb-6">
@@ -841,10 +960,12 @@ export default function ElectionDetail() {
                     min="1"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     value={newPosition.seats}
-                    onChange={(e) => setNewPosition({ ...newPosition, seats: parseInt(e.target.value) || 1 })}
+                    onChange={e =>
+                      setNewPosition({ ...newPosition, seats: parseInt(e.target.value) || 1 })
+                    }
                     required
                   />
-              </div>
+                </div>
                 <div className="flex justify-end space-x-3">
                   <button
                     type="button"
@@ -862,7 +983,7 @@ export default function ElectionDetail() {
                   </button>
                 </div>
               </form>
-              </div>
+            </div>
           </div>
         </div>
       )}
@@ -875,22 +996,28 @@ export default function ElectionDetail() {
               <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Election</h3>
               <form onSubmit={handleEditElection}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Election Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Election Name
+                  </label>
                   <input
                     type="text"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     value={editElection.name}
-                    onChange={(e) => setEditElection({ ...editElection, name: e.target.value })}
+                    onChange={e => setEditElection({ ...editElection, name: e.target.value })}
                     required
                   />
                 </div>
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
                   <textarea
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     rows={3}
                     value={editElection.description}
-                    onChange={(e) => setEditElection({ ...editElection, description: e.target.value })}
+                    onChange={e =>
+                      setEditElection({ ...editElection, description: e.target.value })
+                    }
                   />
                 </div>
                 <div className="flex justify-end space-x-3">
@@ -927,9 +1054,17 @@ export default function ElectionDetail() {
                     Upload a CSV file with the following columns:
                   </p>
                   <ul className="text-xs text-gray-500 list-disc list-inside mb-4 space-y-1">
-                    <li><code className="bg-gray-100 px-1 rounded">name</code> or <code className="bg-gray-100 px-1 rounded">full_name</code> (required)</li>
-                    <li><code className="bg-gray-100 px-1 rounded">student_id</code> or <code className="bg-gray-100 px-1 rounded">id</code> (optional)</li>
-                    <li><code className="bg-gray-100 px-1 rounded">email</code> (optional)</li>
+                    <li>
+                      <code className="bg-gray-100 px-1 rounded">name</code> or{' '}
+                      <code className="bg-gray-100 px-1 rounded">full_name</code> (required)
+                    </li>
+                    <li>
+                      <code className="bg-gray-100 px-1 rounded">student_id</code> or{' '}
+                      <code className="bg-gray-100 px-1 rounded">id</code> (optional)
+                    </li>
+                    <li>
+                      <code className="bg-gray-100 px-1 rounded">email</code> (optional)
+                    </li>
                   </ul>
                 </div>
                 <div className="mb-6">
@@ -937,14 +1072,12 @@ export default function ElectionDetail() {
                   <input
                     type="file"
                     accept=".csv"
-                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    onChange={e => setImportFile(e.target.files?.[0] || null)}
+                    className="w-full px-3 py-2 border text-gray-500 border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
                     required
                   />
                   {importFile && (
-                    <p className="mt-2 text-sm text-green-600">
-                      Selected: {importFile.name}
-                    </p>
+                    <p className="mt-2 text-sm text-green-600">Selected: {importFile.name}</p>
                   )}
                 </div>
                 <div className="flex justify-end space-x-3">
