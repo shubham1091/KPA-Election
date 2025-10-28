@@ -392,8 +392,22 @@ export default function VoterElectionPage({ params }: { params: Promise<{ electi
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to submit ballot')
+        // Try to parse JSON error, but gracefully fallback to plain text if server returned HTML/text
+        let errMsg = 'Failed to submit ballot'
+        try {
+          const cloned = response.clone()
+          const errorData = await cloned.json()
+          errMsg = errorData?.error || errorData?.message || JSON.stringify(errorData)
+        } catch {
+          try {
+            const text = await response.text()
+            if (text) errMsg = text
+          } catch {
+            // ignore
+          }
+        }
+
+        throw new Error(errMsg)
       }
 
       setSuccess(true)
