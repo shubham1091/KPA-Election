@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { positions, candidates, voters, ballots, count_jobs } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { positions, candidates, voters, ballots, ballot_rankings, count_jobs } from '@/lib/schema'
+import { eq, sql } from 'drizzle-orm'
 
 export async function GET(request: Request) {
   try {
@@ -12,13 +12,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Election ID required' }, { status: 400 })
     }
 
-    const [positionsList, candidatesList, votersList, ballotsList, jobsList] = await Promise.all([
+    const [positionsList, candidatesList, votersList, jobsList] = await Promise.all([
       db.select().from(positions).where(eq(positions.election_id, electionId)),
       db.select().from(candidates).where(eq(candidates.election_id, electionId)),
       db.select().from(voters).where(eq(voters.election_id, electionId)),
-      db.select().from(ballots).where(eq(ballots.election_id, electionId)),
       db.select().from(count_jobs).where(eq(count_jobs.election_id, electionId)),
     ])
+
+    // Count only ballots that have at least one ranking (exclude blank/orphan ballots)
+    const brRows = await db
+      .select({ ballot_id: ballot_rankings.ballot_id })
+      .from(ballot_rankings)
+      .where(sql`${ballot_rankings.ballot_id} IN (SELECT ${ballots.id} FROM ${ballots} WHERE ${ballots.election_id} = ${electionId})`)
+
+    const ballotsCount = new Set((brRows as Array<{ ballot_id: string }>).map(r => r.ballot_id)).size
 
     const jobsSummary = jobsList.reduce(
       (acc: { total: number; queued: number; running: number; completed: number; failed: number }, j) => {
@@ -37,7 +44,7 @@ export async function GET(request: Request) {
       positions: positionsList.length,
       candidates: candidatesList.length,
       voters: votersList.length,
-      ballots: ballotsList.length,
+      ballots: Number(ballotsCount) || 0,
       jobs: jobsSummary,
     }
 

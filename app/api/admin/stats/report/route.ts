@@ -10,7 +10,7 @@ import {
   count_jobs,
   count_events,
 } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 function toCSV(rows: string[][]) {
   return rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -26,16 +26,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Election ID required' }, { status: 400 })
     }
 
-    // Fetch base entities in parallel
-    const [positionsList, candidatesList, votersList, ballotsList, jobsList] = await Promise.all([
+    // Fetch base entities in parallel (we'll compute ballots separately to exclude blank ballots)
+    const [positionsList, candidatesList, votersList, jobsList] = await Promise.all([
       db.select().from(positions).where(eq(positions.election_id, electionId)),
       db.select().from(candidates).where(eq(candidates.election_id, electionId)),
       db.select().from(voters).where(eq(voters.election_id, electionId)),
-      db.select().from(ballots).where(eq(ballots.election_id, electionId)),
       db.select().from(count_jobs).where(eq(count_jobs.election_id, electionId)),
     ])
 
-    const ballotsCount = ballotsList.length
+    // Count only ballots that have at least one ranking (exclude blank/orphan ballots)
+    const brRows = await db
+      .select({ ballot_id: ballot_rankings.ballot_id })
+      .from(ballot_rankings)
+      .where(sql`${ballot_rankings.ballot_id} IN (SELECT ${ballots.id} FROM ${ballots} WHERE ${ballots.election_id} = ${electionId})`)
+
+    const ballotsCount = new Set((brRows as Array<{ ballot_id: string }>).map(r => r.ballot_id)).size
     const votersCount = votersList.length
 
     const positionsReport: any[] = []
@@ -82,7 +87,7 @@ export async function GET(request: Request) {
     const report = {
       electionId,
       voters: votersCount,
-      ballots: ballotsCount,
+      ballots: Number(ballotsCount) || 0,
       positions: positionsReport,
     }
 
