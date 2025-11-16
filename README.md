@@ -20,6 +20,31 @@ cp .env.example .env.local
 npm run db:push
 ```
 
+### Local development with Docker
+
+If you prefer to run Postgres locally (recommended for development), the repository includes a Docker Compose setup.
+
+1. Copy the example env file and edit if needed:
+```bash
+cp .env.local.example .env.local
+# Edit .env.local if you want to change credentials or DB name
+```
+
+2. Start Postgres via Docker Compose (this will also enable the required pgcrypto extension on first run):
+```bash
+docker compose up -d
+```
+
+3. Push the schema to the local DB:
+```bash
+npm run db:push
+```
+
+Notes:
+- The docker-compose uses Postgres 15 and creates a database named `kpa_election` by default.
+- The init SQL creates the `pgcrypto` extension so `gen_random_uuid()` works.
+- For production (Vercel + Neon) keep using the `DATABASE_URL` environment variable; the app auto-detects Neon vs traditional Postgres.
+
 ### 4. Create Admin User
 ```bash
 npm run create-admin

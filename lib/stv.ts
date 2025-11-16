@@ -1,11 +1,16 @@
 // server/src/stv.ts
 import 'dotenv/config';
-import { neon } from '@neondatabase/serverless';
 import crypto from "crypto";
 import { v4 as uuidv4 } from "uuid";
-
-// Use Neon serverless driver for better Vercel compatibility
-const sql = neon(process.env.DATABASE_URL!);
+import { db } from '@/lib/db'
+import {
+  candidates,
+  ballots,
+  ballot_rankings,
+  count_events,
+  count_jobs,
+} from '@/lib/schema'
+import { eq, sql } from 'drizzle-orm'
 
 /**
  * Deterministic RNG based on seed
@@ -47,21 +52,29 @@ export async function runStvForPosition(
 ) {
   try {
     // 1) fetch candidates for position (not withdrawn)
-    const candRes = await sql`SELECT id, display_name FROM candidates WHERE position_id = ${positionId} AND election_id = ${electionId} AND withdrawn = false`;
-    const candidates = candRes.map((r) => ({ id: r.id as string, name: r.display_name as string }));
-    if (candidates.length === 0) {
+    const candRes = await db.select().from(candidates)
+      .where(sql`${candidates.position_id} = ${positionId} AND ${candidates.election_id} = ${electionId} AND ${candidates.withdrawn} = false`) as Array<{ id: string; display_name: string }>;
+    const candList = candRes.map((r: { id: string; display_name: string }) => ({ id: r.id, name: r.display_name }));
+    if (candList.length === 0) {
       // nothing to count
-      await sql`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = ${JSON.stringify({ error: "no candidates" })} WHERE id = ${jobId}`;
+      await db.update(count_jobs).set({ status: 'failed', finished_at: new Date(), result_summary: JSON.stringify({ error: "no candidates" }) }).where(eq(count_jobs.id, jobId));
       return;
     }
 
     // 2) fetch ballots and build preference arrays for this position
     // We want for each ballot: ordered candidate ids by rank for this position only
-    const ballotsRes = await sql`SELECT b.id as ballot_id, br.candidate_id, br.rank
-       FROM ballots b
-       JOIN ballot_rankings br ON br.ballot_id = b.id
-       WHERE b.election_id = ${electionId} AND br.position_id = ${positionId}
-       ORDER BY b.id, br.rank`;
+    // Fetch ballot rankings for this position for ballots belonging to the election.
+    let ballotsRes = await db
+      .select({ ballot_id: ballot_rankings.ballot_id, candidate_id: ballot_rankings.candidate_id, rank: ballot_rankings.rank })
+      .from(ballot_rankings)
+      .where(sql`${ballot_rankings.ballot_id} IN (SELECT ${ballots.id} FROM ${ballots} WHERE ${ballots.election_id} = ${electionId}) AND ${ballot_rankings.position_id} = ${positionId}`) as Array<{ ballot_id: string; candidate_id: string; rank: number }>;
+
+    // Ensure deterministic ordering by ballot id then rank in JS
+    ballotsRes = ballotsRes.sort((a, b) => {
+      const idCmp = String(a.ballot_id).localeCompare(String(b.ballot_id));
+      if (idCmp !== 0) return idCmp;
+      return (Number(a.rank) || 0) - (Number(b.rank) || 0);
+    });
 
     // build map ballot_id -> ordered array of candidate ids
     const ballotMap = new Map<string, string[]>();
@@ -78,15 +91,15 @@ export async function runStvForPosition(
 
     const totalBallots = ballotsList.length;
     if (totalBallots === 0) {
-      await sql`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = ${JSON.stringify({ error: "no ballots" })} WHERE id = ${jobId}`;
+      await db.update(count_jobs).set({ status: 'failed', finished_at: new Date(), result_summary: JSON.stringify({ error: "no ballots" }) }).where(eq(count_jobs.id, jobId));
       return;
     }
 
     // Droop quota: floor(total/2) + 1 for single-seat
     const quota = Math.floor(totalBallots / 2) + 1;
 
-    // active candidates set
-    const active = new Set(candidates.map((c) => c.id));
+  // active candidates set
+  const active = new Set(candList.map((c) => c.id));
     let elected: string | null = null;
     const eliminated: string[] = [];
 
@@ -247,7 +260,7 @@ export async function runStvForPosition(
 
     // Safety check: if we hit max rounds without electing anyone
     if (roundNumber >= MAX_ROUNDS && !elected) {
-      await sql`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = ${JSON.stringify({ error: "Maximum rounds exceeded - possible infinite loop prevented" })} WHERE id = ${jobId}`;
+      await db.update(count_jobs).set({ status: 'failed', finished_at: new Date(), result_summary: JSON.stringify({ error: "Maximum rounds exceeded - possible infinite loop prevented" }) }).where(eq(count_jobs.id, jobId));
       return;
     }
 
@@ -268,19 +281,18 @@ export async function runStvForPosition(
     // store each round into count_events
     for (let i = 0; i < rounds.length; i++) {
       const r = rounds[i];
-      const roundId = uuidv4();
-      await sql`INSERT INTO count_events (id, job_id, round_number, payload, created_at)
-         VALUES (${roundId}, ${jobId}, ${r.round}, ${JSON.stringify(r)}, NOW())`;
+  const roundId = uuidv4();
+  await db.insert(count_events).values({ id: roundId, job_id: jobId, round_number: r.round, payload: r as unknown, created_at: new Date() });
     }
 
     // update job row
-    await sql`UPDATE count_jobs SET status = 'completed', finished_at = NOW(), result_summary = ${JSON.stringify(resultSummary)} WHERE id = ${jobId}`;
+    await db.update(count_jobs).set({ status: 'completed', finished_at: new Date(), result_summary: JSON.stringify(resultSummary) }).where(eq(count_jobs.id, jobId));
 
     return resultSummary;
   } catch (err) {
     console.error("runStvForPosition error:", err);
     try {
-      await sql`UPDATE count_jobs SET status = 'failed', finished_at = NOW(), result_summary = ${JSON.stringify({ error: String(err) })} WHERE id = ${jobId}`;
+      await db.update(count_jobs).set({ status: 'failed', finished_at: new Date(), result_summary: JSON.stringify({ error: String(err) }) }).where(eq(count_jobs.id, jobId));
     } catch (e) {
       console.error("failed to update job status after error:", e);
     }
